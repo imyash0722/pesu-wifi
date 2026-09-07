@@ -685,6 +685,62 @@ def cmd_daemon():
                 log(f"✖ Login failed: {msg}")
                 time.sleep(15)
 
+def cmd_update():
+    """Check for updates from GitHub releases and update the system."""
+    print_info("Checking for updates from GitHub releases...")
+    try:
+        r = _request("GET", "https://api.github.com/repos/imyash0722/pesu-wifi/releases/latest", timeout=6)
+        if r.status_code != 200:
+            print_err(f"Could not reach GitHub API (HTTP {r.status_code}).")
+            return 1
+
+        rel = r.json()
+        tag = rel.get("tag_name", "").strip()
+        assets = rel.get("assets", [])
+
+        installed_pkg = None
+        try:
+            chk = subprocess.run(["pacman", "-Q", "pesu-wifi-git"], capture_output=True, text=True)
+            if chk.returncode == 0:
+                installed_pkg = chk.stdout.strip()
+        except Exception:
+            pass
+
+        pkg_url = None
+        for a in assets:
+            name = a.get("name", "")
+            if name.endswith(".pkg.tar.zst") and not name.startswith("pesu-wifi-git-"):
+                pkg_url = a.get("browser_download_url")
+                break
+        if not pkg_url:
+            for a in assets:
+                if a.get("name", "").endswith(".pkg.tar.zst"):
+                    pkg_url = a.get("browser_download_url")
+                    break
+
+        print_ok(f"Latest release: {tag}")
+        if installed_pkg:
+            print_info(f"Currently installed package: {installed_pkg}")
+
+        if pkg_url and subprocess.run(["which", "pacman"], capture_output=True).returncode == 0:
+            print_info("Installing latest package via pacman...")
+            res = subprocess.run(["sudo", "pacman", "-U", "--noconfirm", pkg_url])
+            if res.returncode == 0:
+                print_ok(f"Successfully updated pesu-wifi to {tag}!")
+                subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+                subprocess.run(["systemctl", "--user", "restart", "pesu-wifi.service"], capture_output=True)
+                print_ok("Restarted background pesu-wifi.service.")
+                return 0
+            else:
+                print_err("pacman update failed. You may need to provide your password or fingerprint.")
+                return res.returncode
+        else:
+            print_info("Run 'git pull && ./install.sh' to update from source.")
+            return 0
+    except Exception as e:
+        print_err(f"Update check failed: {e}")
+        return 1
+
 def print_help():
     banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, 'v2.2')}
 {_c(DIM, 'Automated captive portal login & keepalive watchdog for PES University.')}
@@ -702,6 +758,7 @@ def print_help():
   {_c(GREEN, 'del')} [username]      Remove a saved account
   {_c(GREEN, 'list')} [-p]           List saved accounts; -p to show passwords
   {_c(GREEN, 'daemon')}              Run keepalive watchdog in foreground ({KEEP_ALIVE_INTERVAL}s polling)
+  {_c(GREEN, 'update')}              Check for updates from GitHub and install
   {_c(GREEN, 'help')}                Show this message
 
 {_c(BOLD, 'EXAMPLES:')}
@@ -712,6 +769,7 @@ def print_help():
   pesu-wifi login student1          # Login with a specific account
   pesu-wifi select student1         # Switch active account
   pesu-wifi list -p                 # Show all accounts & passwords
+  pesu-wifi update                  # Check for updates and install
 """
     print(banner)
 
@@ -745,6 +803,8 @@ def main():
         sys.exit(cmd_list(show_pw))
     elif cmd == "daemon":
         cmd_daemon()
+    elif cmd in ("update", "upgrade"):
+        sys.exit(cmd_update())
     else:
         print_err(f"Unknown command '{cmd}'.")
         print_help()
