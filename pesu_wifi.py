@@ -709,8 +709,8 @@ def print_help():
   pesu-wifi wifi                    # Interactive Wi-Fi network picker
   pesu-wifi wifi PESU-EC-Campus     # Connect directly to SSID
   pesu-wifi login                   # Login with active account
-  pesu-wifi login deltatime-1       # Login with a specific account
-  pesu-wifi select deltatime-1      # Switch active account
+  pesu-wifi login student1          # Login with a specific account
+  pesu-wifi select student1         # Switch active account
   pesu-wifi list -p                 # Show all accounts & passwords
 """
     print(banner)

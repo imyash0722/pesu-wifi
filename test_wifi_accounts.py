@@ -2,7 +2,7 @@
 """
 Test Suite: PESU WiFi Connections & Multi-Account Authentication
 Tests Wi-Fi connection and each saved credential with controlled delays,
-verifying portal state and real internet throughput, finally ensuring deltatime-1 is active.
+verifying portal state and real internet throughput, finally restoring the active account.
 """
 import sys
 import os
@@ -12,16 +12,11 @@ import subprocess
 import requests
 from datetime import datetime
 
-PESU_CLI = "/mnt/shared/stuff/projects/pesu-wifi/pesu_wifi.py"
+PESU_CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pesu_wifi.py")
 PORTAL_BASE = "http://192.168.254.1:8090"
 TEST_URL = "http://detectportal.firefox.com/success.txt"
 BACKUP_TEST_URL = "https://www.google.com/generate_204"
 
-# Expected timing:
-# 1. NetworkManager Wi-Fi reconnect test: ~5s
-# 2. Per-account cycle: ~9s * 4 = ~36s
-# 3. Final deltatime-1 login & verification: ~6s
-# Total expected runtime: ~48-52 seconds
 EXPECTED_RUNTIME_SEC = 50
 
 def log(msg):
@@ -74,16 +69,33 @@ def main():
         "success": False
     }
 
-    # 1. Temporarily pause the background daemon to avoid race conditions
+    # 1. Read accounts to test and identify target active account
+    config_path = os.path.expanduser("~/.config/pesu-wifi/config.json")
+    if not os.path.isfile(config_path):
+        log("✖ No configuration file found at ~/.config/pesu-wifi/config.json")
+        sys.exit(1)
+
+    with open(config_path, "r") as f:
+        cfg = json.load(f)
+
+    accounts = list(cfg.get("accounts", {}).keys())
+    if not accounts:
+        log("✖ No saved accounts to test. Run 'pesu-wifi add' first.")
+        sys.exit(1)
+
+    primary_account = cfg.get("active_user") or accounts[0]
+    preferred_ssid = cfg.get("preferred_ssid") or "PESU-EC-Campus"
+
+    # 2. Temporarily pause the background daemon to avoid race conditions
     log("Pausing pesu-wifi background service during test...")
     run_cmd(["systemctl", "--user", "stop", "pesu-wifi.service"])
     time.sleep(1)
 
-    # 2. Test Wi-Fi network layer
-    log("── Phase 1: Testing Wi-Fi Connection (PESU-EC-Campus) ──")
-    code, out, err = run_cmd([sys.executable, PESU_CLI, "wifi", "PESU-EC-Campus"])
+    # 3. Test Wi-Fi network layer
+    log(f"── Phase 1: Testing Wi-Fi Connection ({preferred_ssid}) ──")
+    code, out, err = run_cmd([sys.executable, PESU_CLI, "wifi", preferred_ssid])
     log(f"Wi-Fi Connect: {out}")
-    time.sleep(2)  # Wait for DHCP / link to stabilize
+    time.sleep(2)
 
     # Check portal reachability
     s = requests.Session()
@@ -97,7 +109,7 @@ def main():
     s.close()
 
     report["wifi_connection_test"] = {
-        "ssid": "PESU-EC-Campus",
+        "ssid": preferred_ssid,
         "connect_code": code,
         "portal_online": portal_ok
     }
@@ -105,21 +117,13 @@ def main():
 
     if not portal_ok:
         log("✖ Fatal: Wi-Fi connected but portal gateway is unreachable. Aborting test.")
-        # Ensure deltatime-1 and service are restored
-        run_cmd([sys.executable, PESU_CLI, "select", "deltatime-1"])
+        run_cmd([sys.executable, PESU_CLI, "select", primary_account])
         run_cmd(["systemctl", "--user", "start", "pesu-wifi.service"])
         sys.exit(1)
 
-    # 3. Read accounts to test
-    config_path = os.path.expanduser("~/.config/pesu-wifi/config.json")
-    with open(config_path, "r") as f:
-        cfg = json.load(f)
-    accounts = list(cfg.get("accounts", {}).keys())
-
-    # We want to test all accounts, ending with deltatime-1
-    # Sort so deltatime-1 is the very last one
-    test_order = [u for u in accounts if u != "deltatime-1"] + ["deltatime-1"]
-    log(f"Accounts to test in sequence: {test_order}")
+    # Sequence accounts so the primary/active account is tested last and left active
+    test_order = [u for u in accounts if u != primary_account] + [primary_account]
+    log(f"Accounts to test in sequence: {len(test_order)} accounts configured")
 
     log("\n── Phase 2: Testing Authentication & Internet for Each Account ──")
     for i, user in enumerate(test_order, 1):
@@ -158,23 +162,22 @@ def main():
 
         report["accounts_tested"][user] = acct_result
 
-        # Step D: Logout unless it's the final account (deltatime-1)
+        # Step D: Logout unless it's the final account
         if not is_last:
             log("  Logging out for next test...")
             l_code, l_out, _ = run_cmd([sys.executable, PESU_CLI, "logout"])
             acct_result["logout_ok"] = (l_code == 0)
             log(f"  Logout Result: {l_out}")
-            time.sleep(3)  # portal cool-down between session transitions
+            time.sleep(3)
         else:
             log(f"  --> Final target reached: leaving '{user}' logged in.")
 
     # 4. Final Verification & Cleanup
     log("\n── Phase 3: Final State Lock-in & Service Resumption ──")
-    run_cmd([sys.executable, PESU_CLI, "select", "deltatime-1"])
-    # Verify deltatime-1 session is indeed active
-    code, out, _ = run_cmd([sys.executable, PESU_CLI, "login", "deltatime-1"])
+    run_cmd([sys.executable, PESU_CLI, "select", primary_account])
+    code, out, _ = run_cmd([sys.executable, PESU_CLI, "login", primary_account])
     final_net_ok, final_lat, _ = test_internet()
-    log(f"Final Account: deltatime-1")
+    log(f"Final Account: {primary_account}")
     log(f"Final Login State: {out}")
     log(f"Final Internet: {'✔ ONLINE' if final_net_ok else '✖ OFFLINE'} ({round(final_lat*1000, 1)}ms)")
 
@@ -189,7 +192,7 @@ def main():
 
     total_time = round(time.time() - start_time, 2)
     report["total_time_seconds"] = total_time
-    report["final_active_account"] = "deltatime-1"
+    report["final_active_account"] = primary_account
     report["success"] = final_net_ok
 
     with open("/tmp/pesu_wifi_test_report.json", "w") as f:
