@@ -12,14 +12,19 @@ import fcntl
 import getpass
 import subprocess
 import requests
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
 # ── ANSI Color & Styling ──────────────────────────────────────────────────────
 USE_COLOR = sys.stdout.isatty() or os.getenv("FORCE_COLOR") == "1"
+ANSI_REGEX = re.compile(r"\x1b\[[0-9;]*m")
 
 def _c(code: str, text: str) -> str:
     return f"{code}{text}\033[0m" if USE_COLOR else text
+
+def visual_len(s: str) -> int:
+    return len(ANSI_REGEX.sub("", s))
 
 BOLD    = "\033[1m"
 DIM     = "\033[2m"
@@ -320,38 +325,48 @@ def cmd_status():
     daemon_active, daemon_pid = is_daemon_running()
     wifi_ssid = get_active_wifi_ssid()
 
-    # Formatted Status Card
-    print("")
-    print(_c(BOLD + CYAN, "╭─── PESU WiFi Status ──────────────────────────────────────────╮"))
-    
-    # Gateway
-    gw_status = _c(GREEN, "Online") if portal_alive else _c(RED, "Unreachable")
-    print(f"│  {_c(BOLD, 'Portal Gateway')}  :  {PORTAL_BASE} [{gw_status}]")
+    gw_status = _c(GREEN, "[Online]") if portal_alive else _c(RED, "[Unreachable]")
+    gw_val = f"{PORTAL_BASE} {gw_status}"
 
-    # Wi-Fi
-    print(f"│  {_c(BOLD, 'Wi-Fi Network')}   :  {wifi_ssid}")
-
-    # Session
     if session_status is True:
-        s_text = _c(BOLD + GREEN, "LOGGED IN")
+        s_val = _c(BOLD + GREEN, "LOGGED IN")
     elif session_status is False:
-        s_text = _c(BOLD + YELLOW, "SIGNED OUT")
+        s_val = _c(BOLD + YELLOW, "SIGNED OUT")
     else:
-        s_text = _c(BOLD + RED, "UNREACHABLE")
-    print(f"│  {_c(BOLD, 'Session State')}  :  {s_text}")
+        s_val = _c(BOLD + RED, "UNREACHABLE")
 
-    # Account
-    user_text = _c(GREEN, username) if username else _c(YELLOW, "(None configured - run 'pesu-wifi add')")
-    print(f"│  {_c(BOLD, 'Active Account')} :  {user_text}")
+    acc_val = _c(GREEN, username) if username else _c(YELLOW, "(None - run 'pesu-wifi add')")
 
-    # Daemon
     if daemon_active:
-        d_text = _c(GREEN, f"Active (PID: {daemon_pid})") if daemon_pid else _c(GREEN, "Active")
+        pid_str = f" (PID: {daemon_pid})" if daemon_pid else ""
+        d_val = f"{_c(GREEN, 'Active')}{_c(DIM, pid_str)} {_c(DIM, f'[polling: {KEEP_ALIVE_INTERVAL}s]')}"
     else:
-        d_text = _c(DIM, "Inactive")
-    print(f"│  {_c(BOLD, 'Daemon Watcher')}:  {d_text} (polling: {KEEP_ALIVE_INTERVAL}s)")
+        d_val = _c(DIM, f"Inactive [polling: {KEEP_ALIVE_INTERVAL}s]")
 
-    print(_c(BOLD + CYAN, "╰───────────────────────────────────────────────────────────────╯"))
+    rows = [
+        ("Portal Gateway", gw_val),
+        ("Wi-Fi Network", wifi_ssid),
+        ("Session State", s_val),
+        ("Active Account", acc_val),
+        ("Daemon Watcher", d_val),
+    ]
+
+    label_width = 16
+    max_val_len = max(visual_len(v) for _, v in rows)
+    inner_width = max(54, label_width + 4 + max_val_len)
+
+    top_border = _c(BOLD + CYAN, "╭── PESU WiFi Status " + ("─" * (inner_width - 17)) + "╮")
+    bot_border = _c(BOLD + CYAN, "╰" + ("─" * (inner_width + 4)) + "╯")
+
+    print("")
+    print(top_border)
+    for label, val in rows:
+        vlen = label_width + 3 + visual_len(val)
+        pad = " " * max(0, inner_width - vlen)
+        border_l = _c(BOLD + CYAN, "│")
+        border_r = _c(BOLD + CYAN, "│")
+        print(f"{border_l}  {_c(BOLD, label.ljust(label_width))} : {val}{pad}  {border_r}")
+    print(bot_border)
     print("")
 
 def cmd_login():
