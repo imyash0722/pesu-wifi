@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.sock
+*.log
+.DS_Store
+
+# Makepkg build artifacts
+*.pkg.tar.*
+/aur/src/
+/aur/pkg/
+/aur/pesu-wifi/
+/aur/*.pkg.tar.*
+/src/
+/pkg/

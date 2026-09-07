@@ -1,0 +1,35 @@
+# Maintainer: imyash0722 <imyash0722@users.noreply.github.com>
+pkgname=pesu-wifi-git
+_pkgname=pesu-wifi
+pkgver=r6.2cdf7ba
+pkgrel=1
+pkgdesc="Automated captive portal login manager and keepalive watchdog daemon for PES University WiFi"
+arch=('any')
+url="https://github.com/imyash0722/pesu-wifi"
+license=('MIT')
+depends=('python' 'python-requests' 'networkmanager')
+makedepends=('git')
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+source=("git+${url}.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "${srcdir}/${_pkgname}"
+  if git describe --long --tags --abbrev=7 &>/dev/null; then
+    git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+  else
+    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+  fi
+}
+
+package() {
+  cd "${srcdir}/${_pkgname}"
+  install -Dm755 pesu_wifi.py "${pkgdir}/usr/bin/pesu-wifi"
+  install -Dm644 pesu-wifi.service "${pkgdir}/usr/lib/systemd/system/pesu-wifi.service"
+  install -Dm644 pesu-wifi.service "${pkgdir}/usr/lib/systemd/user/pesu-wifi.service"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  if [ -f LICENSE ]; then
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  fi
+}

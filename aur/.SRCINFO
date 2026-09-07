@@ -1,0 +1,17 @@
+pkgbase = pesu-wifi-git
+	pkgdesc = Automated captive portal login manager and keepalive watchdog daemon for PES University WiFi
+	pkgver = r6.2cdf7ba
+	pkgrel = 1
+	url = https://github.com/imyash0722/pesu-wifi
+	arch = any
+	license = MIT
+	makedepends = git
+	depends = python
+	depends = python-requests
+	depends = networkmanager
+	provides = pesu-wifi
+	conflicts = pesu-wifi
+	source = git+https://github.com/imyash0722/pesu-wifi.git
+	sha256sums = SKIP
+
+pkgname = pesu-wifi-git
