@@ -1,0 +1,32 @@
+post_install() {
+  cat << 'EOF'
+
+╭─────────────────────────────────────────────────────────────────────────────╮
+│  ✔ PESU WiFi Installed Successfully!                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  To enable and start the background keepalive daemon on login:              │
+│    $ systemctl --user enable --now pesu-wifi.service                        │
+│                                                                             │
+│  To configure your student credentials:                                     │
+│    $ pesu-wifi add                                                          │
+│                                                                             │
+│  To check live status card:                                                 │
+│    $ pesu-wifi status                                                       │
+╰─────────────────────────────────────────────────────────────────────────────╯
+
+EOF
+}
+
+post_upgrade() {
+  cat << 'EOF'
+
+╭─────────────────────────────────────────────────────────────────────────────╮
+│  ✔ PESU WiFi Updated!                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  To restart the background daemon with the new version:                     │
+│    $ systemctl --user daemon-reload                                         │
+│    $ systemctl --user restart pesu-wifi.service                             │
+╰─────────────────────────────────────────────────────────────────────────────╯
+
+EOF
+}
