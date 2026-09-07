@@ -3,6 +3,7 @@
 A lightweight, high-performance automated captive portal login manager and keepalive watchdog daemon for PES University campus Wi-Fi networks.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases)
 [![AUR package](https://img.shields.io/badge/AUR-pesu--wifi--git-blue.svg)](https://aur.archlinux.org/packages/pesu-wifi-git)
 
 ---
@@ -10,29 +11,48 @@ A lightweight, high-performance automated captive portal login manager and keepa
 ## Features
 
 - **Automated Keepalive Watchdog:** Heartbeat polling keeps your captive portal session alive indefinitely, even when browsers are closed or devices idle.
-- **Smart Status Detection:** Probes the local gateway in sub-second time (10–30ms) to detect session states without redundant network traffic or false error alerts.
+- **Sub-Second Status Detection:** Probes the local gateway in 10–30ms to detect session states without redundant network traffic or false timeout warnings.
 - **Interactive Wi-Fi Selector:** Built-in scanner scans available nearby access points, reports signal strength and security types, and connects directly via NetworkManager.
-- **Multi-Account Switching:** Save multiple accounts, switch the active user instantly, or explicitly log in under a specific student account.
+- **Multi-Account Switching:** Save multiple student accounts, switch the active user instantly, or explicitly log in under a specific account.
 - **Secure Lightweight Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-wifi/.env` with strict `0600` permissions.
 - **Resilient Multi-Tier Self-Healing:**
   - **Tier 1:** NetworkManager connection renegotiation.
   - **Tier 2:** Wi-Fi radio power-cycling.
   - **Tier 3:** NetworkManager service recovery.
-- **Proxy Bypass:** Bypasses local HTTP proxies that interfere with local gateway negotiation.
-- **Modern CLI:** ANSI-colored status cards, intuitive commands, and detailed test diagnostics.
+- **Proxy Bypass:** Bypasses campus HTTP proxies that interfere with local gateway negotiation.
+- **Modern CLI:** Clean ANSI status cards, colored indicators, and comprehensive verification suite.
 
 ---
 
 ## Installation
 
-### Option 1: Arch User Repository (Arch Linux / CachyOS)
+### Option 1: GitHub Release (Pre-built Arch / CachyOS package)
+Download and install the latest compiled package directly:
+```bash
+# 1. Download the latest release package
+curl -s https://api.github.com/repos/imyash0722/pesu-wifi/releases/latest \
+  | grep "browser_download_url.*pkg.tar.zst" \
+  | cut -d : -f 2,3 \
+  | tr -d \" \
+  | wget -qi -
+
+# 2. Install using pacman
+sudo pacman -U pesu-wifi-*.pkg.tar.zst
+```
+*You can also manually download the `.pkg.tar.zst` file from [**GitHub Releases**](https://github.com/imyash0722/pesu-wifi/releases).*
+
+---
+
+### Option 2: Arch User Repository (AUR)
 ```bash
 paru -S pesu-wifi-git
 # OR
 yay -S pesu-wifi-git
 ```
 
-### Option 2: One-Click Installer (Any Linux Distribution)
+---
+
+### Option 3: One-Click Installer (Any Linux Distribution)
 ```bash
 # Clone the repository
 git clone https://github.com/imyash0722/pesu-wifi.git ~/pesu-wifi
@@ -126,15 +146,33 @@ journalctl --user -u pesu-wifi.service -f
 
 ## Automated Verification Suite
 
-An automated diagnostic script is included to test end-to-end network connectivity, multi-account logins, throughput latency, and connection stability:
+An automated diagnostic script is included in [`tests/`](tests/) to test end-to-end network connectivity, multi-account logins, throughput latency, and connection stability:
 ```bash
-python3 test_wifi_accounts.py
+python3 tests/test_wifi_accounts.py
 ```
 
 The test suite performs:
 1. **Network link verification:** Connects to the preferred Wi-Fi SSID and tests gateway response times.
 2. **Account rotation test:** Iterates through every saved credential, logs in, performs real-world HTTP checks, tests a 4-second connection stability hold, and logs out cleanly.
 3. **Restoration:** Restores the original active account, verifies internet connectivity, resumes `pesu-wifi.service`, and outputs a telemetry report to `/tmp/pesu_wifi_test_report.json`.
+
+---
+
+## Repository Structure
+
+```text
+pesu-wifi/
+├── pesu_wifi.py             # Core CLI executable & keepalive watchdog daemon
+├── install.sh               # Standalone system installer and service configurator
+├── pesu-wifi.service        # Systemd user service unit definition
+├── aur/
+│   ├── PKGBUILD             # Arch User Repository package build definition
+│   └── .SRCINFO             # Arch User Repository package metadata
+├── tests/
+│   └── test_wifi_accounts.py# Automated multi-account & network verification suite
+├── LICENSE                  # MIT License
+└── README.md                # Documentation and guide
+```
 
 ---
 
@@ -149,6 +187,24 @@ You can override defaults without modifying configuration files:
 | `PESU_PORTAL_BASE` | Portal gateway URL | `http://192.168.254.1:8090` |
 | `PESU_WIFI_CON` | Preferred Wi-Fi connection name | `PESU-EC-Campus` |
 | `FORCE_COLOR` | Force ANSI color formatting (`1` / `0`) | Auto-detected |
+
+---
+
+## Uninstallation
+
+To remove `pesu-wifi`:
+
+**If installed via AUR or `.pkg.tar.zst`:**
+```bash
+sudo pacman -R pesu-wifi-git
+```
+
+**If installed via `install.sh`:**
+```bash
+systemctl --user disable --now pesu-wifi.service
+rm -f ~/.local/bin/pesu-wifi ~/.config/systemd/user/pesu-wifi.service
+systemctl --user daemon-reload
+```
 
 ---
 

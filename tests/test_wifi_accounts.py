@@ -12,7 +12,7 @@ import subprocess
 import requests
 from datetime import datetime
 
-PESU_CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pesu_wifi.py")
+PESU_CLI = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "pesu_wifi.py"))
 PORTAL_BASE = "http://192.168.254.1:8090"
 TEST_URL = "http://detectportal.firefox.com/success.txt"
 BACKUP_TEST_URL = "https://www.google.com/generate_204"
