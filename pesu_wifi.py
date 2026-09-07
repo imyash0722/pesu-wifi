@@ -154,6 +154,7 @@ def get_active_credentials() -> tuple[str | None, str | None]:
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
     "Accept-Language": "en-US,en;q=0.5",
+    "Connection": "close",
 }
 
 session = requests.Session()
@@ -210,8 +211,9 @@ def get_active_wifi_ssid() -> str:
 
 def check_internet() -> bool:
     try:
-        r = session.get(CONNECTIVITY_URL, timeout=4)
-        return r.status_code == 204
+        # Connect directly to an IP to completely avoid blocking DNS lookups when offline
+        r = session.get("http://1.1.1.1", timeout=1.5)
+        return r.status_code in (200, 204, 301, 302)
     except Exception:
         return False
 
@@ -234,7 +236,7 @@ def check_live(username: str | None = None) -> bool | None:
         "producttype": 0,
     }
     try:
-        r = session.get(LIVE_URL, params=params, timeout=5)
+        r = session.get(LIVE_URL, params=params, timeout=3)
         if r.status_code == 200:
             root = ET.fromstring(r.text)
             ack = (root.findtext("ack") or "").strip().lower()
@@ -244,8 +246,6 @@ def check_live(username: str | None = None) -> bool | None:
             return False
         return None
     except Exception:
-        if check_internet():
-            return True
         return None
 
 def do_login(username: str, password: str) -> tuple[bool, str]:
@@ -410,16 +410,13 @@ def cmd_logout():
         print_ok("Already logged out. No active session found.")
         return 0
     elif status is None:
-        print_warn(f"Portal unreachable at {PORTAL_BASE}. Cannot verify session status.")
+        print_warn(f"Portal unreachable at {PORTAL_BASE}. Attempting logout request anyway...")
     else:
         print_info(f"Active session found. Logging out '{username or 'user'}'...")
 
     success, msg = do_logout(username)
-
-    # Re-verify status
-    verify_status = check_live(username)
-    if verify_status is False or success:
-        print_ok("Successfully logged out.")
+    if success:
+        print_ok(f"Successfully logged out. ({msg})")
         return 0
     else:
         print_err(f"Logout failed: {msg}")
