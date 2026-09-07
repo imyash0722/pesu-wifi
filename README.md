@@ -4,7 +4,7 @@ A lightweight, high-performance automated captive portal login manager and keepa
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases)
-[![AUR package](https://img.shields.io/badge/AUR-pesu--wifi--git-blue.svg)](https://aur.archlinux.org/packages/pesu-wifi-git)
+[![Arch Package](https://img.shields.io/badge/Arch%20Linux-.pkg.tar.zst-1793d1.svg)](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.2.0)
 
 ---
 
@@ -26,34 +26,27 @@ A lightweight, high-performance automated captive portal login manager and keepa
 
 ## Installation
 
-### Option 1: GitHub Release (Pre-built Arch / CachyOS package)
-Install directly using pacman with the latest release URL:
+### Method 1: Direct Pacman Install (Arch Linux / CachyOS)
+Install the pre-built release package directly using `pacman`:
 ```bash
 sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v2.2.0/pesu-wifi-2.2.0-any.pkg.tar.zst
 ```
-*Or download the `.pkg.tar.zst` package file directly from [**GitHub Releases**](https://github.com/imyash0722/pesu-wifi/releases).*
+*Or download the `.pkg.tar.zst` asset directly from [**GitHub Releases**](https://github.com/imyash0722/pesu-wifi/releases).*
 
 ---
 
-### Option 2: Arch User Repository (AUR)
-```bash
-paru -S pesu-wifi-git
-# OR
-yay -S pesu-wifi-git
-```
-
----
-
-### Option 3: One-Click Installer (Any Linux Distribution)
+### Method 2: One-Click Installer (Any Linux Distribution)
 ```bash
 # Clone the repository
 git clone https://github.com/imyash0722/pesu-wifi.git ~/pesu-wifi
 cd ~/pesu-wifi
 
-# Run the installer
+# Run installer
 chmod +x install.sh
 ./install.sh
 ```
+
+> **Note on AUR:** The PKGBUILD is ready in [`aur/`](aur/) and will be published to the Arch User Repository once AUR account registrations reopen. In the meantime, install directly via the pre-built `.pkg.tar.zst` release above.
 
 ---
 
