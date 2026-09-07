@@ -27,19 +27,11 @@ A lightweight, high-performance automated captive portal login manager and keepa
 ## Installation
 
 ### Option 1: GitHub Release (Pre-built Arch / CachyOS package)
-Download and install the latest compiled package directly:
+Install directly using pacman with the latest release URL:
 ```bash
-# 1. Download the latest release package
-curl -s https://api.github.com/repos/imyash0722/pesu-wifi/releases/latest \
-  | grep "browser_download_url.*pkg.tar.zst" \
-  | cut -d : -f 2,3 \
-  | tr -d \" \
-  | wget -qi -
-
-# 2. Install using pacman
-sudo pacman -U pesu-wifi-*.pkg.tar.zst
+sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v2.2.0/pesu-wifi-2.2.0-any.pkg.tar.zst
 ```
-*You can also manually download the `.pkg.tar.zst` file from [**GitHub Releases**](https://github.com/imyash0722/pesu-wifi/releases).*
+*Or download the `.pkg.tar.zst` package file directly from [**GitHub Releases**](https://github.com/imyash0722/pesu-wifi/releases).*
 
 ---
 
