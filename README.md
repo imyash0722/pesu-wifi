@@ -58,20 +58,32 @@ Credentials are saved in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-w
 # View network & live session status card
 pesu-wifi status
 
-# Smart login (verifies status first)
+# Interactive Wi-Fi network scanner and connector
+pesu-wifi wifi
+# Or connect directly to an SSID
+pesu-wifi wifi PESU-EC-Campus
+
+# Smart login (uses active account)
 pesu-wifi login
+# Login using a specific saved account
+pesu-wifi login deltatime-1
 
 # Smart logout (verifies status first)
 pesu-wifi logout
 
-# Add credentials interactively
+# Select / switch active account (alias: pesu-wifi use)
+pesu-wifi select
+pesu-wifi use deltatime-1
+
+# List saved accounts (-p to reveal passwords)
+pesu-wifi list
+pesu-wifi list -p
+
+# Add or update credentials
 pesu-wifi add
 
-# Remove credentials interactively
-pesu-wifi del
-
-# List saved accounts
-pesu-wifi list
+# Remove a saved account
+pesu-wifi del deltatime-1
 
 # View daemon logs
 journalctl --user -u pesu-wifi -f
