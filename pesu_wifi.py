@@ -36,10 +36,10 @@ MAGENTA = "\033[95m"
 CYAN    = "\033[96m"
 WHITE   = "\033[97m"
 
-def print_ok(msg):    print(_c(GREEN, f"✔  {msg}"))
-def print_err(msg):   print(_c(RED, f"✖  {msg}"))
+def print_ok(msg):    print(_c(GREEN,  f"✔  {msg}"))
+def print_err(msg):   print(_c(RED,    f"✖  {msg}"))
 def print_warn(msg):  print(_c(YELLOW, f"⚠  {msg}"))
-def print_info(msg):  print(_c(CYAN, f"➜  {msg}"))
+def print_info(msg):  print(_c(CYAN,   f"➜  {msg}"))
 
 def get_time_str():
     return datetime.now().strftime("[%H:%M:%S]")
@@ -48,46 +48,28 @@ def log(msg):
     print(f"{_c(DIM, get_time_str())} {msg}", flush=True)
 
 # ── Configuration & Paths ─────────────────────────────────────────────────────
-PORTAL_BASE = os.getenv("PESU_PORTAL_BASE", "http://192.168.254.1:8090")
-LOGIN_URL = f"{PORTAL_BASE}/login.xml"
-LOGOUT_URL = f"{PORTAL_BASE}/logout.xml"
-LIVE_URL = f"{PORTAL_BASE}/live"
-CONNECTIVITY_URL = "http://connectivitycheck.gstatic.com/generate_204"
-DEFAULT_WIFI_CON = os.getenv("PESU_WIFI_CON", "PESU-EC-Campus")
-LOCK_FILE = "/tmp/pesu_wifi_daemon.lock"
-KEEP_ALIVE_INTERVAL = 60  # Polling rate in seconds
+PORTAL_BASE         = os.getenv("PESU_PORTAL_BASE", "http://192.168.254.1:8090")
+LOGIN_URL           = f"{PORTAL_BASE}/login.xml"
+LOGOUT_URL          = f"{PORTAL_BASE}/logout.xml"
+LIVE_URL            = f"{PORTAL_BASE}/live"
+DEFAULT_WIFI_CON    = os.getenv("PESU_WIFI_CON", "PESU-EC-Campus")
+LOCK_FILE           = "/tmp/pesu_wifi_daemon.lock"
+KEEP_ALIVE_INTERVAL = 60  # seconds between portal keepalive pings
 
+# ── Config File Helpers ───────────────────────────────────────────────────────
 def get_config_dir() -> str:
-    xdg_config = os.getenv("XDG_CONFIG_HOME")
-    if xdg_config:
-        return os.path.join(xdg_config, "pesu-wifi")
-    return os.path.join(os.path.expanduser("~"), ".config", "pesu-wifi")
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    return os.path.join(xdg, "pesu-wifi") if xdg else os.path.join(os.path.expanduser("~"), ".config", "pesu-wifi")
 
-def get_config_candidates() -> list[str]:
-    candidates = []
-    # 1. Active user config
-    candidates.append(os.path.join(get_config_dir(), "config.json"))
-    # 2. Sudo invoking user config if running under sudo
+def load_config_data() -> dict:
+    # Try JSON config in order: user, sudo-user, system
+    candidates = [os.path.join(get_config_dir(), "config.json")]
     sudo_user = os.getenv("SUDO_USER")
     if sudo_user:
         candidates.append(f"/home/{sudo_user}/.config/pesu-wifi/config.json")
-    # 3. System-wide config
     candidates.append("/etc/pesu-wifi/config.json")
-    return candidates
 
-def get_env_candidates() -> list[str]:
-    candidates = []
-    candidates.append(os.path.join(get_config_dir(), ".env"))
-    sudo_user = os.getenv("SUDO_USER")
-    if sudo_user:
-        candidates.append(f"/home/{sudo_user}/.config/pesu-wifi/.env")
-    candidates.append("/etc/pesu-wifi/.env")
-    candidates.append(".env")
-    return candidates
-
-def load_config_data() -> dict:
-    # Check JSON configs
-    for path in get_config_candidates():
+    for path in candidates:
         if os.path.isfile(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
@@ -95,8 +77,11 @@ def load_config_data() -> dict:
             except Exception:
                 pass
 
-    # Fallback to .env configs
-    for path in get_env_candidates():
+    # Fallback: .env file
+    env_candidates = [os.path.join(get_config_dir(), ".env"), ".env"]
+    if sudo_user:
+        env_candidates.insert(1, f"/home/{sudo_user}/.config/pesu-wifi/.env")
+    for path in env_candidates:
         if os.path.isfile(path):
             try:
                 env_dict = {}
@@ -113,7 +98,7 @@ def load_config_data() -> dict:
             except Exception:
                 pass
 
-    # Fallback to environment variables
+    # Fallback: env vars
     env_usr = os.getenv("PESU_USERNAME")
     env_pwd = os.getenv("PESU_PASSWORD")
     if env_usr and env_pwd:
@@ -125,14 +110,12 @@ def save_config_data(data: dict):
     conf_dir = get_config_dir()
     os.makedirs(conf_dir, exist_ok=True)
     json_path = os.path.join(conf_dir, "config.json")
-    env_path = os.path.join(conf_dir, ".env")
+    env_path  = os.path.join(conf_dir, ".env")
 
-    # Write JSON
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     os.chmod(json_path, 0o600)
 
-    # Write synchronized .env
     active = data.get("active_user")
     pwd = data.get("accounts", {}).get(active, "") if active else ""
     with open(env_path, "w", encoding="utf-8") as f:
@@ -141,26 +124,38 @@ def save_config_data(data: dict):
 
 def get_active_credentials() -> tuple[str | None, str | None]:
     data = load_config_data()
-    active = data.get("active_user")
+    active   = data.get("active_user")
     accounts = data.get("accounts", {})
     if active and active in accounts:
         return active, accounts[active]
     if accounts:
-        first_user = next(iter(accounts))
-        return first_user, accounts[first_user]
+        first = next(iter(accounts))
+        return first, accounts[first]
     return None, None
 
-# ── Session & Network Engine ──────────────────────────────────────────────────
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
+def get_credentials_for(username: str) -> str | None:
+    data = load_config_data()
+    return data.get("accounts", {}).get(username)
+
+# ── HTTP Engine (fresh session per request — avoids TCP keepalive hangs) ──────
+_BASE_HEADERS = {
+    "User-Agent":      "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0",
     "Accept-Language": "en-US,en;q=0.5",
-    "Connection": "close",
+    "Connection":      "close",
 }
 
-session = requests.Session()
-session.headers.update(HEADERS)
-session.trust_env = False
+def _request(method: str, url: str, **kwargs):
+    """Always create a fresh Session so we never reuse a stale TCP socket."""
+    s = requests.Session()
+    s.trust_env = False
+    s.headers.update(_BASE_HEADERS)
+    try:
+        fn = s.get if method.upper() == "GET" else s.post
+        return fn(url, **kwargs)
+    finally:
+        s.close()
 
+# ── Daemon Lock ───────────────────────────────────────────────────────────────
 _lock_fd = None
 
 def acquire_daemon_lock():
@@ -174,34 +169,33 @@ def acquire_daemon_lock():
 
 def is_daemon_running() -> tuple[bool, int | None]:
     try:
-        test_fd = open(LOCK_FILE, "a+")
-        fcntl.flock(test_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(test_fd, fcntl.LOCK_UN)
-        test_fd.close()
+        fd = open(LOCK_FILE, "a+")
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        fd.close()
         return False, None
     except (IOError, OSError):
-        # Read PID from lock file if possible
         try:
-            r = subprocess.run(["pgrep", "-f", "pesu_wifi.py daemon"], capture_output=True, text=True)
-            pids = [int(p) for p in r.stdout.strip().split() if p and int(p) != os.getpid()]
+            r = subprocess.run(["pgrep", "-f", "pesu_wifi.py daemon"],
+                               capture_output=True, text=True)
+            pids = [int(p) for p in r.stdout.strip().split()
+                    if p and int(p) != os.getpid()]
             return True, pids[0] if pids else None
         except Exception:
             return True, None
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def get_timestamp() -> int:
     return int(time.time() * 1000)
 
-def clean_message(raw_msg: str) -> str:
-    if not raw_msg:
-        return ""
-    return html.unescape(raw_msg).strip()
+def clean_message(raw: str) -> str:
+    return html.unescape(raw or "").strip()
 
 def get_active_wifi_ssid() -> str:
     try:
         res = subprocess.run(
             ["nmcli", "-t", "-f", "name,type", "connection", "show", "--active"],
-            capture_output=True, text=True, timeout=3
-        )
+            capture_output=True, text=True, timeout=3)
         for line in res.stdout.strip().splitlines():
             if ":802-11-wireless" in line:
                 return line.split(":")[0]
@@ -209,124 +203,108 @@ def get_active_wifi_ssid() -> str:
         pass
     return DEFAULT_WIFI_CON
 
-def check_internet() -> bool:
-    try:
-        # Connect directly to an IP to completely avoid blocking DNS lookups when offline
-        r = session.get("http://1.1.1.1", timeout=1.5)
-        return r.status_code in (200, 204, 301, 302)
-    except Exception:
-        return False
-
+# ── Portal API ────────────────────────────────────────────────────────────────
 def check_live(username: str | None = None) -> bool | None:
     """
-    Check if session is currently active on the portal.
-    Returns:
-        True  -> Logged in
-        False -> Signed out / session expired
-        None  -> Portal unreachable
+    Returns True (logged in), False (signed out), or None (portal unreachable).
+    Uses a fresh TCP connection each time.
     """
     if not username:
         username, _ = get_active_credentials()
         username = username or "user"
-
-    params = {
-        "mode": 192,
-        "username": username,
-        "a": get_timestamp(),
-        "producttype": 0,
-    }
     try:
-        r = session.get(LIVE_URL, params=params, timeout=3)
-        if r.status_code == 200:
-            root = ET.fromstring(r.text)
-            ack = (root.findtext("ack") or "").strip().lower()
-            status = (root.findtext("status") or "").strip().lower()
-            if ack == "ack" or "live" in status or "ok" in status:
-                return True
-            return False
-        return None
+        r = _request("GET", LIVE_URL, params={
+            "mode": 192, "username": username,
+            "a": get_timestamp(), "producttype": 0,
+        }, timeout=4)
+        root = ET.fromstring(r.text)
+        ack    = (root.findtext("ack")    or "").strip().lower()
+        status = (root.findtext("status") or "").strip().lower()
+        if ack == "ack" or "live" in status or "ok" in status:
+            return True
+        return False
     except Exception:
         return None
 
 def do_login(username: str, password: str) -> tuple[bool, str]:
-    data = {
-        "mode": 191,
-        "username": username,
-        "password": password,
-        "a": get_timestamp(),
-        "producttype": 0,
-    }
+    """Returns (success, message)."""
     try:
-        r = session.post(LOGIN_URL, data=data, timeout=8)
-        root = ET.fromstring(r.text)
+        r = _request("POST", LOGIN_URL, data={
+            "mode": 191, "username": username, "password": password,
+            "a": get_timestamp(), "producttype": 0,
+        }, timeout=8)
+        root    = ET.fromstring(r.text)
         message = clean_message(root.findtext("message") or "")
-        ack = (root.findtext("ack") or "").strip().lower()
+        status  = (root.findtext("status") or "").strip().upper()
 
-        if "signed in" in message.lower() or "you are signed in as" in message.lower() or ack == "ack":
+        # Portal returns status=LIVE when session is active/just created
+        if status == "LIVE":
             return True, message or f"Signed in as {username}"
-        elif message:
-            return ("signed in" in message.lower()), message
-        return True, "Login OK"
+        if "signed in" in message.lower() or "you are signed in" in message.lower():
+            return True, message
+        # Explicit failure messages
+        if "failed" in message.lower() or "invalid" in message.lower():
+            return False, message
+        # Unknown — treat as OK if no failure keyword
+        return True, message or "Login OK"
     except Exception as e:
         return False, f"Portal unreachable ({e})"
 
 def do_logout(username: str | None = None) -> tuple[bool, str]:
+    """Returns (success, message)."""
     if not username:
         username, _ = get_active_credentials()
         username = username or "user"
-
-    data = {
-        "mode": 193,
-        "username": username,
-        "a": get_timestamp(),
-        "producttype": 0,
-    }
     try:
-        r = session.post(LOGOUT_URL, data=data, timeout=8)
-        root = ET.fromstring(r.text)
+        r = _request("POST", LOGOUT_URL, data={
+            "mode": 193, "username": username,
+            "a": get_timestamp(), "producttype": 0,
+        }, timeout=6)
+        root    = ET.fromstring(r.text)
         message = clean_message(root.findtext("message") or "")
-        return True, message if message else "Signed out successfully"
+        return True, message or "Signed out successfully"
     except Exception as e:
         return False, f"Portal unreachable ({e})"
 
 def heal_network(tier: int):
+    """Multi-tier self-healing: reconnect → radio cycle → restart NM."""
     wifi_con = get_active_wifi_ssid()
     try:
         if tier == 1:
             log(f"[Self-Healing L1] Reconnecting to '{wifi_con}'...")
             subprocess.run(["nmcli", "connection", "up", wifi_con], timeout=20)
         elif tier == 2:
-            log(f"[Self-Healing L2] Cycling Wi-Fi radio...")
+            log("[Self-Healing L2] Cycling Wi-Fi radio...")
             subprocess.run(["nmcli", "radio", "wifi", "off"], timeout=10)
             time.sleep(2)
             subprocess.run(["nmcli", "radio", "wifi", "on"], timeout=10)
             time.sleep(5)
             subprocess.run(["nmcli", "connection", "up", wifi_con], timeout=20)
         elif tier == 3:
-            log(f"[Self-Healing L3] Restarting NetworkManager...")
+            log("[Self-Healing L3] Restarting NetworkManager...")
             subprocess.run(["systemctl", "restart", "NetworkManager"], timeout=20)
             time.sleep(6)
             subprocess.run(["nmcli", "connection", "up", wifi_con], timeout=20)
     except Exception as err:
-        log(f"Self-healing Tier {tier} execution error: {err}")
+        log(f"Self-healing Tier {tier} error: {err}")
 
 # ── User Commands ─────────────────────────────────────────────────────────────
 
 def cmd_status():
     username, _ = get_active_credentials()
-    portal_alive = None
+
+    portal_alive = False
     try:
-        r = session.get(PORTAL_BASE, timeout=3)
+        r = _request("GET", PORTAL_BASE, timeout=3)
         portal_alive = (r.status_code == 200)
     except Exception:
-        portal_alive = False
+        pass
 
-    session_status = check_live(username)
+    session_status           = check_live(username)
     daemon_active, daemon_pid = is_daemon_running()
-    wifi_ssid = get_active_wifi_ssid()
+    wifi_ssid                = get_active_wifi_ssid()
 
-    gw_status = _c(GREEN, "[Online]") if portal_alive else _c(RED, "[Unreachable]")
-    gw_val = f"{PORTAL_BASE} {gw_status}"
+    gw_val = f"{PORTAL_BASE} " + (_c(GREEN, "[Online]") if portal_alive else _c(RED, "[Unreachable]"))
 
     if session_status is True:
         s_val = _c(BOLD + GREEN, "LOGGED IN")
@@ -335,67 +313,73 @@ def cmd_status():
     else:
         s_val = _c(BOLD + RED, "UNREACHABLE")
 
-    acc_val = _c(GREEN, username) if username else _c(YELLOW, "(None - run 'pesu-wifi add')")
+    acc_val = _c(GREEN, username) if username else _c(YELLOW, "(None — run 'pesu-wifi add')")
 
     if daemon_active:
         pid_str = f" (PID: {daemon_pid})" if daemon_pid else ""
-        d_val = f"{_c(GREEN, 'Active')}{_c(DIM, pid_str)} {_c(DIM, f'[polling: {KEEP_ALIVE_INTERVAL}s]')}"
+        d_val = _c(GREEN, "Active") + _c(DIM, pid_str) + " " + _c(DIM, f"[polling: {KEEP_ALIVE_INTERVAL}s]")
     else:
         d_val = _c(DIM, f"Inactive [polling: {KEEP_ALIVE_INTERVAL}s]")
 
     rows = [
         ("Portal Gateway", gw_val),
-        ("Wi-Fi Network", wifi_ssid),
-        ("Session State", s_val),
+        ("Wi-Fi Network",  wifi_ssid),
+        ("Session State",  s_val),
         ("Active Account", acc_val),
         ("Daemon Watcher", d_val),
     ]
 
     label_width = 15
     max_val_len = max(visual_len(v) for _, v in rows)
-    # Box width: 1(│) + 2(sp) + 15(lbl) + 3(" : ") + max_val_len + 2(sp) + 1(│) = 24 + max_val_len
-    box_width = max(58, 24 + max_val_len)
+    box_width   = max(58, 24 + max_val_len)
 
     title_prefix = "╭── PESU WiFi Status "
-    top_dashes = box_width - len(title_prefix) - 1
-    top_border = _c(BOLD + CYAN, title_prefix + ("─" * top_dashes) + "╮")
-    bot_border = _c(BOLD + CYAN, "╰" + ("─" * (box_width - 2)) + "╯")
+    top_border   = _c(BOLD + CYAN, title_prefix + ("─" * (box_width - len(title_prefix) - 1)) + "╮")
+    bot_border   = _c(BOLD + CYAN, "╰" + ("─" * (box_width - 2)) + "╯")
 
     print("")
     print(top_border)
     for label, val in rows:
-        pad_len = box_width - 24 - visual_len(val)
-        pad = " " * max(0, pad_len)
-        border_l = _c(BOLD + CYAN, "│")
-        border_r = _c(BOLD + CYAN, "│")
-        print(f"{border_l}  {_c(BOLD, label.ljust(label_width))} : {val}{pad}  {border_r}")
+        pad  = " " * max(0, box_width - 24 - visual_len(val))
+        bl   = _c(BOLD + CYAN, "│")
+        br   = _c(BOLD + CYAN, "│")
+        print(f"{bl}  {_c(BOLD, label.ljust(label_width))} : {val}{pad}  {br}")
     print(bot_border)
     print("")
 
-def cmd_login():
-    username, password = get_active_credentials()
-    if not username or not password:
-        print_err("No credentials configured.")
-        print(_c(YELLOW, "  Please run 'pesu-wifi add' to save your login credentials."))
-        return 1
+def cmd_login(target_user: str | None = None):
+    """Login. If target_user is given, use that account (and make it active)."""
+    if target_user:
+        password = get_credentials_for(target_user)
+        if not password:
+            print_err(f"No saved credentials for '{target_user}'.")
+            print(_c(YELLOW, f"  Run 'pesu-wifi add' to add this account."))
+            return 1
+        username = target_user
+        # Make it active
+        data = load_config_data()
+        data["active_user"] = username
+        save_config_data(data)
+        print_info(f"Using account '{username}'.")
+    else:
+        username, password = get_active_credentials()
+        if not username or not password:
+            print_err("No credentials configured.")
+            print(_c(YELLOW, "  Run 'pesu-wifi add' to save login credentials."))
+            return 1
 
-    # Requirement 4: Call status check first
     status = check_live(username)
     if status is True:
-        print_ok(f"Already logged in. Active session detected for '{username}'.")
+        print_ok(f"Already logged in as '{username}'.")
         return 0
     elif status is False:
         print_info(f"Session inactive. Logging in as '{username}'...")
     else:
-        print_warn(f"Portal appears unreachable at {PORTAL_BASE}.")
-        print_info(f"Attempting login request for '{username}'...")
+        print_warn(f"Portal check timed out. Attempting login for '{username}'...")
 
     success, msg = do_login(username, password)
-
-    # Re-verify status
-    verify_status = check_live(username)
-    if verify_status is True or success:
-        print_ok(f"Successfully logged in as '{username}'.")
+    if success:
+        print_ok(f"Logged in as '{username}'. ({msg})")
         return 0
     else:
         print_err(f"Login failed: {msg}")
@@ -404,34 +388,32 @@ def cmd_login():
 def cmd_logout():
     username, _ = get_active_credentials()
 
-    # Requirement 5: Call status check first
     status = check_live(username)
     if status is False:
         print_ok("Already logged out. No active session found.")
         return 0
     elif status is None:
-        print_warn(f"Portal unreachable at {PORTAL_BASE}. Attempting logout request anyway...")
+        print_warn(f"Portal check timed out. Attempting logout anyway...")
     else:
         print_info(f"Active session found. Logging out '{username or 'user'}'...")
 
     success, msg = do_logout(username)
     if success:
-        print_ok(f"Successfully logged out. ({msg})")
+        print_ok(f"Logged out. ({msg})")
         return 0
     else:
         print_err(f"Logout failed: {msg}")
         return 1
 
 def cmd_add(args: list[str]):
-    # Requirement 2: Interactive or argument-based credential adding
     if len(args) >= 2:
         username = args[0].strip()
         password = args[1].strip()
     else:
         print(_c(BOLD, "Enter login credentials:"))
         try:
-            username = input("- username: ").strip()
-            password = getpass.getpass("- password: ").strip()
+            username = input("  username: ").strip()
+            password = getpass.getpass("  password: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nCancelled.")
             return 1
@@ -443,24 +425,25 @@ def cmd_add(args: list[str]):
         print_err("Password cannot be empty.")
         return 1
 
-    config = load_config_data()
-    if "accounts" not in config:
-        config["accounts"] = {}
+    data = load_config_data()
+    if "accounts" not in data:
+        data["accounts"] = {}
 
-    config["accounts"][username] = password
-    config["active_user"] = username
-    save_config_data(config)
+    existed = username in data["accounts"]
+    data["accounts"][username] = password
+    data["active_user"] = username
+    save_config_data(data)
 
-    print_ok(f"Saved credentials for '{username}'. Set as active account.")
+    action = "Updated" if existed else "Saved"
+    print_ok(f"{action} credentials for '{username}'. Set as active account.")
     return 0
 
 def cmd_del(args: list[str]):
-    # Requirement 3: Interactive or argument-based credential deletion
     if len(args) >= 1:
         username = args[0].strip()
     else:
         try:
-            username = input("Enter username: ").strip()
+            username = input("Enter username to delete: ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nCancelled.")
             return 1
@@ -469,38 +452,75 @@ def cmd_del(args: list[str]):
         print_err("Username cannot be empty.")
         return 1
 
-    config = load_config_data()
-    accounts = config.get("accounts", {})
+    data     = load_config_data()
+    accounts = data.get("accounts", {})
 
     if username not in accounts:
-        print_err(f"User '{username}' not found in saved accounts.")
+        print_err(f"Account '{username}' not found in saved accounts.")
         return 1
 
     del accounts[username]
-    if config.get("active_user") == username:
-        config["active_user"] = next(iter(accounts)) if accounts else None
+    if data.get("active_user") == username:
+        data["active_user"] = next(iter(accounts)) if accounts else None
+        if data["active_user"]:
+            print_info(f"Active account switched to '{data['active_user']}'.")
 
-    config["accounts"] = accounts
-    save_config_data(config)
-
+    data["accounts"] = accounts
+    save_config_data(data)
     print_ok(f"Removed credentials for '{username}'.")
     return 0
 
-def cmd_list():
-    config = load_config_data()
-    accounts = config.get("accounts", {})
-    active = config.get("active_user")
+def cmd_select(args: list[str]):
+    """Set the active (default) account."""
+    if len(args) >= 1:
+        username = args[0].strip()
+    else:
+        data     = load_config_data()
+        accounts = data.get("accounts", {})
+        if not accounts:
+            print_err("No saved accounts. Run 'pesu-wifi add' first.")
+            return 1
+        print(_c(BOLD, "Select default account:"))
+        users = list(accounts.keys())
+        for i, u in enumerate(users, 1):
+            marker = _c(CYAN, " [active]") if u == data.get("active_user") else ""
+            print(f"  {_c(DIM, str(i) + '.')} {u}{marker}")
+        try:
+            choice = input("  Enter number or username: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nCancelled.")
+            return 1
+        if choice.isdigit() and 1 <= int(choice) <= len(users):
+            username = users[int(choice) - 1]
+        else:
+            username = choice
+
+    data = load_config_data()
+    if username not in data.get("accounts", {}):
+        print_err(f"Account '{username}' not found. Run 'pesu-wifi list' to see saved accounts.")
+        return 1
+
+    data["active_user"] = username
+    save_config_data(data)
+    print_ok(f"Default account set to '{username}'.")
+    return 0
+
+def cmd_list(show_passwords: bool = False):
+    data     = load_config_data()
+    accounts = data.get("accounts", {})
+    active   = data.get("active_user")
 
     print(_c(BOLD + CYAN, "\nSaved Accounts:"))
     if not accounts:
         print(_c(DIM, "  No accounts saved. Run 'pesu-wifi add' to add one.\n"))
         return 0
 
-    for user in accounts:
-        if user == active:
-            print(f"  • {_c(BOLD + GREEN, user)} {_c(CYAN, '[active]')}")
-        else:
-            print(f"  • {user}")
+    for user, pwd in accounts.items():
+        is_active = (user == active)
+        marker = _c(CYAN, " [active]") if is_active else ""
+        bullet = _c(GREEN, "•") if is_active else _c(DIM, "•")
+        pwd_str = f"  {_c(DIM, pwd)}" if show_passwords else ""
+        print(f"  {bullet} {_c(BOLD, user) if is_active else user}{marker}{pwd_str}")
     print("")
     return 0
 
@@ -508,14 +528,14 @@ def cmd_daemon():
     acquire_daemon_lock()
     username, password = get_active_credentials()
     if not username or not password:
-        log(f"{_c(RED, 'Error:')} No credentials saved. Run 'pesu-wifi add' first.")
+        log(_c(RED, "Error: No credentials saved. Run 'pesu-wifi add' first."))
         sys.exit(1)
 
-    log(f"Starting resilient keepalive watchdog loop for '{username}' (interval: {KEEP_ALIVE_INTERVAL}s)...")
-    unreachable_count = 0
+    log(f"Starting keepalive watchdog for '{username}' (interval: {KEEP_ALIVE_INTERVAL}s)...")
+    unreachable_streak = 0
 
     while True:
-        # Reload credentials in case user updated them via 'pesu-wifi add'
+        # Reload credentials in case user changed them
         curr_user, curr_pwd = get_active_credentials()
         if curr_user and curr_pwd:
             username, password = curr_user, curr_pwd
@@ -523,68 +543,73 @@ def cmd_daemon():
         status = check_live(username)
 
         if status is True:
-            if unreachable_count > 0:
-                log(f"✔ Connectivity fully restored after {unreachable_count} failed attempt(s).")
-                unreachable_count = 0
+            if unreachable_streak > 0:
+                log(f"✔ Connectivity restored after {unreachable_streak} failed check(s).")
+                unreachable_streak = 0
             log(f"Session active ({username}). Next check in {KEEP_ALIVE_INTERVAL}s.")
             time.sleep(KEEP_ALIVE_INTERVAL)
+
         elif status is False:
-            unreachable_count = 0
-            log("Session expired. Attempting login...")
+            unreachable_streak = 0
+            log("Session expired. Logging in...")
             ok, msg = do_login(username, password)
             if ok:
                 log(f"✔ Logged in as '{username}'.")
             else:
                 log(f"Login failed: {msg}")
             time.sleep(15)
-        else:
-            unreachable_count += 1
-            log(f"⚠ Portal unreachable / network dropped (streak: {unreachable_count}).")
 
-            if unreachable_count <= 2:
-                log("Attempting fallback login request...")
-                do_login(username, password)
-                time.sleep(15)
-            elif unreachable_count == 3:
+        else:
+            # Portal unreachable — this is normal briefly after logout.
+            # Back off gently; only heal after sustained outage.
+            unreachable_streak += 1
+            log(f"⚠ Portal unreachable (streak: {unreachable_streak}).")
+
+            if unreachable_streak <= 3:
+                # Brief outage — just wait and retry
+                time.sleep(20)
+            elif unreachable_streak == 4:
+                # ~80s of outage — try reconnecting SSID
                 heal_network(1)
-                time.sleep(8)
-                do_login(username, password)
                 time.sleep(10)
-            elif unreachable_count in (5, 6):
+            elif unreachable_streak in (6, 7):
+                # ~2min — cycle radio
                 heal_network(2)
-                time.sleep(8)
-                do_login(username, password)
                 time.sleep(10)
-            elif unreachable_count >= 8:
+            elif unreachable_streak >= 10:
+                # Sustained outage — restart NM, then cap streak
                 heal_network(3)
-                time.sleep(8)
-                do_login(username, password)
                 time.sleep(15)
-                unreachable_count = 4
+                unreachable_streak = 5
             else:
-                time.sleep(15)
+                time.sleep(20)
 
 def print_help():
-    banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, 'v2.0')}
-{_c(DIM, 'Automated captive portal login manager and keepalive watchdog.')}
+    banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, 'v2.1')}
+{_c(DIM, 'Automated captive portal login & keepalive watchdog for PES University.')}
 
 {_c(BOLD, 'USAGE:')}
   pesu-wifi <command> [arguments]
 
 {_c(BOLD, 'COMMANDS:')}
-  {_c(GREEN, 'status')}       Show live network, portal, and session status card
-  {_c(GREEN, 'login')}        Check status and log in if session is inactive
-  {_c(GREEN, 'logout')}       Check status and sign out cleanly
-  {_c(GREEN, 'add')}          Save or update login credentials interactively
-  {_c(GREEN, 'del')}          Remove a saved account
-  {_c(GREEN, 'list')}         Display saved accounts
-  {_c(GREEN, 'daemon')}       Run persistent keepalive watchdog loop ({KEEP_ALIVE_INTERVAL}s polling)
-  {_c(GREEN, 'help')}         Display this help message
+  {_c(GREEN, 'status')}              Show live status card
+  {_c(GREEN, 'login')} [username]    Smart login; optionally with a specific account
+  {_c(GREEN, 'logout')}              Sign out cleanly
+  {_c(GREEN, 'select')} [username]   Set the default (active) account
+  {_c(GREEN, 'add')}                 Save or update login credentials
+  {_c(GREEN, 'del')} [username]      Remove a saved account
+  {_c(GREEN, 'list')} [-p]           List saved accounts; -p to show passwords
+  {_c(GREEN, 'daemon')}              Run keepalive watchdog in foreground ({KEEP_ALIVE_INTERVAL}s polling)
+  {_c(GREEN, 'help')}                Show this message
 
 {_c(BOLD, 'EXAMPLES:')}
-  pesu-wifi add               # Prompt to enter username and password
-  pesu-wifi login             # Smart login with pre-status check
-  pesu-wifi status            # View current connection overview
+  pesu-wifi add                     # Add credentials interactively
+  pesu-wifi login                   # Login with the active account
+  pesu-wifi login deltatime-1       # Login with a specific account
+  pesu-wifi select                  # Pick default account interactively
+  pesu-wifi select PES2UG25CS615    # Set default account directly
+  pesu-wifi list -p                 # List accounts with passwords visible
+  pesu-wifi status                  # View live connection overview
 """
     print(banner)
 
@@ -593,7 +618,7 @@ def main():
         print_help()
         sys.exit(0)
 
-    cmd = sys.argv[1].lower()
+    cmd  = sys.argv[1].lower()
     args = sys.argv[2:]
 
     if cmd in ("-h", "--help", "help"):
@@ -601,15 +626,19 @@ def main():
     elif cmd == "status":
         cmd_status()
     elif cmd == "login":
-        sys.exit(cmd_login())
+        target = args[0] if args else None
+        sys.exit(cmd_login(target))
     elif cmd == "logout":
         sys.exit(cmd_logout())
+    elif cmd == "select":
+        sys.exit(cmd_select(args))
     elif cmd == "add":
         sys.exit(cmd_add(args))
     elif cmd == "del":
         sys.exit(cmd_del(args))
     elif cmd == "list":
-        sys.exit(cmd_list())
+        show_pw = "-p" in args or "--passwords" in args
+        sys.exit(cmd_list(show_pw))
     elif cmd == "daemon":
         cmd_daemon()
     else:
