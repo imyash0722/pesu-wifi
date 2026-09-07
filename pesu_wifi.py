@@ -351,18 +351,21 @@ def cmd_status():
         ("Daemon Watcher", d_val),
     ]
 
-    label_width = 16
+    label_width = 15
     max_val_len = max(visual_len(v) for _, v in rows)
-    inner_width = max(54, label_width + 4 + max_val_len)
+    # Box width: 1(│) + 2(sp) + 15(lbl) + 3(" : ") + max_val_len + 2(sp) + 1(│) = 24 + max_val_len
+    box_width = max(58, 24 + max_val_len)
 
-    top_border = _c(BOLD + CYAN, "╭── PESU WiFi Status " + ("─" * (inner_width - 17)) + "╮")
-    bot_border = _c(BOLD + CYAN, "╰" + ("─" * (inner_width + 4)) + "╯")
+    title_prefix = "╭── PESU WiFi Status "
+    top_dashes = box_width - len(title_prefix) - 1
+    top_border = _c(BOLD + CYAN, title_prefix + ("─" * top_dashes) + "╮")
+    bot_border = _c(BOLD + CYAN, "╰" + ("─" * (box_width - 2)) + "╯")
 
     print("")
     print(top_border)
     for label, val in rows:
-        vlen = label_width + 3 + visual_len(val)
-        pad = " " * max(0, inner_width - vlen)
+        pad_len = box_width - 24 - visual_len(val)
+        pad = " " * max(0, pad_len)
         border_l = _c(BOLD + CYAN, "│")
         border_r = _c(BOLD + CYAN, "│")
         print(f"{border_l}  {_c(BOLD, label.ljust(label_width))} : {val}{pad}  {border_r}")
