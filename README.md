@@ -115,13 +115,17 @@ pesu-wifi del <username>
 
 ### Background Watchdog Daemon
 ```bash
+# Start background keepalive daemon via systemd
+pesu-wifi start
+
+# Stop background keepalive daemon
+pesu-wifi stop
+
+# Restart background keepalive daemon
+pesu-wifi restart
+
 # Run daemon in the foreground
 pesu-wifi daemon
-
-# Manage the systemd user service
-systemctl --user start pesu-wifi.service
-systemctl --user stop pesu-wifi.service
-systemctl --user restart pesu-wifi.service
 
 # View live daemon logs
 journalctl --user -u pesu-wifi.service -f

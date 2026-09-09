@@ -59,10 +59,28 @@ else
     sed "s|/usr/bin/pesu-wifi|$BIN_DIR/pesu-wifi|g" "$SCRIPT_DIR/pesu-wifi.service" > "$SYSTEMD_USER_DIR/pesu-wifi.service"
 fi
 
-# 4. Enable and restart service
-echo "[4/4] Enabling and starting background service..."
+# 4. Configure background service
+echo "[4/4] Configuring background service..."
 systemctl --user daemon-reload
-systemctl --user enable --now pesu-wifi.service
+systemctl --user enable pesu-wifi.service
+
+# Prompt to add credentials if not configured
+if [ ! -f "$HOME/.config/pesu-wifi/config.json" ] && [ ! -f "$HOME/.config/pesu-wifi/.env" ]; then
+    echo ""
+    echo "No saved credentials found. Would you like to configure them now? [Y/n]"
+    read -r resp
+    if [[ -z "$resp" || "$resp" =~ ^[Yy]$ ]]; then
+        "$BIN_DIR/pesu-wifi" add || true
+    fi
+fi
+
+# Start service if credentials exist
+if [ -f "$HOME/.config/pesu-wifi/config.json" ] || [ -f "$HOME/.config/pesu-wifi/.env" ]; then
+    systemctl --user restart pesu-wifi.service 2>/dev/null || true
+    echo "  ✔ Background service configured and started."
+else
+    echo "  ⚠ Note: Run 'pesu-wifi add' then 'pesu-wifi start' to start the daemon."
+fi
 
 echo ""
 echo "=========================================="
@@ -76,17 +94,11 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* && ! -f "/usr/local/bin/pesu-wifi" ]];
     echo ""
 fi
 
-# Prompt to add credentials if not configured
-if [ ! -f "$HOME/.config/pesu-wifi/config.json" ] && [ ! -f "$HOME/.config/pesu-wifi/.env" ]; then
-    echo "No saved credentials found. Would you like to configure them now? [Y/n]"
-    read -r resp
-    if [[ -z "$resp" || "$resp" =~ ^[Yy]$ ]]; then
-        "$BIN_DIR/pesu-wifi" add || true
-    fi
-fi
-
 echo "Commands:"
 echo "  pesu-wifi status           - Check live connection status"
+echo "  pesu-wifi start            - Start background watchdog daemon"
+echo "  pesu-wifi stop             - Stop background watchdog daemon"
+echo "  pesu-wifi restart          - Restart background watchdog daemon"
 echo "  pesu-wifi wifi             - Interactive Wi-Fi network selector"
 echo "  pesu-wifi login [user]     - Smart login (or explicit user)"
 echo "  pesu-wifi logout           - Clean captive portal sign-out"
