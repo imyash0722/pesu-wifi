@@ -50,6 +50,15 @@ for rcfile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
     fi
 done
 
+# Install shell completions
+mkdir -p "$HOME/.local/share/bash-completion/completions"
+cp "$SCRIPT_DIR/completions/pesu-wifi.bash" "$HOME/.local/share/bash-completion/completions/pesu-wifi" 2>/dev/null || true
+if [ -d "$HOME/.config/fish" ]; then
+    mkdir -p "$HOME/.config/fish/completions"
+    cp "$SCRIPT_DIR/completions/pesu-wifi.fish" "$HOME/.config/fish/completions/pesu-wifi.fish" 2>/dev/null || true
+fi
+echo "  ✔ Installed shell completions."
+
 # 3. Setup systemd user service
 echo "[3/4] Setting up systemd user service..."
 mkdir -p "$SYSTEMD_USER_DIR"
