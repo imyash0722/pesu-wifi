@@ -211,26 +211,35 @@ def is_portal_online() -> bool:
     except Exception:
         return False
 
-def check_live(username: str | None = None) -> bool:
+def check_live(username: str | None = None, retry: bool = True) -> bool:
     """
     Returns True if user has an active session, False otherwise.
     The Cyberoam portal responds in ~15ms with <ack>ack</ack> when logged in,
     or drops/hangs the connection when logged out.
+    Includes a 500ms jitter retry to avoid false session drops on congested campus Wi-Fi.
     """
     if not username:
         username, _ = get_active_credentials()
         username = username or "user"
-    try:
-        r = _request("GET", LIVE_URL, params={
-            "mode": 192, "username": username,
-            "a": get_timestamp(), "producttype": 0,
-        }, timeout=4.0)
-        root = ET.fromstring(r.text)
-        ack    = (root.findtext("ack")    or "").strip().lower()
-        status = (root.findtext("status") or "").strip().lower()
-        return ack == "ack" or "live" in status or "ok" in status
-    except Exception:
+    def _attempt() -> bool:
+        try:
+            r = _request("GET", LIVE_URL, params={
+                "mode": 192, "username": username,
+                "a": get_timestamp(), "producttype": 0,
+            }, timeout=4.0)
+            root = ET.fromstring(r.text)
+            ack    = (root.findtext("ack")    or "").strip().lower()
+            status = (root.findtext("status") or "").strip().lower()
+            return ack == "ack" or "live" in status or "ok" in status
+        except Exception:
+            return False
+
+    if _attempt():
+        return True
+    if not retry:
         return False
+    time.sleep(0.5)
+    return _attempt()
 
 def do_login(username: str, password: str) -> tuple[bool, str]:
     """Returns (success, message)."""
@@ -642,6 +651,7 @@ def cmd_daemon():
 
     log(f"Starting keepalive watchdog for '{username}' (interval: {KEEP_ALIVE_INTERVAL}s)...")
     unreachable_streak = 0
+    consecutive_session_drops = 0
 
     while True:
         curr_user, curr_pwd = get_active_credentials()
@@ -651,6 +661,7 @@ def cmd_daemon():
         # 1. Check if portal gateway is online
         if not is_portal_online():
             unreachable_streak += 1
+            consecutive_session_drops = 0
             log(f"⚠ Portal gateway unreachable (streak: {unreachable_streak}).")
             if unreachable_streak == 3:
                 heal_network(1)
@@ -673,9 +684,17 @@ def cmd_daemon():
 
         # 3. Check if session is live
         if check_live(username):
+            consecutive_session_drops = 0
             log(f"Session active ({username}). Next check in {KEEP_ALIVE_INTERVAL}s.")
             time.sleep(KEEP_ALIVE_INTERVAL)
         else:
+            consecutive_session_drops += 1
+            if consecutive_session_drops < 2:
+                log(f"⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 5s before re-authenticating...")
+                time.sleep(5)
+                continue
+
+            consecutive_session_drops = 0
             log(f"Session expired for '{username}'. Logging in...")
             ok, msg = do_login(username, password)
             if ok:
