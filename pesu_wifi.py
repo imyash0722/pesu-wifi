@@ -175,7 +175,7 @@ def is_daemon_running() -> tuple[bool, int | None]:
         return False, None
     except (IOError, OSError):
         try:
-            r = subprocess.run(["pgrep", "-f", "pesu_wifi.py daemon"],
+            r = subprocess.run(["pgrep", "-f", "pesu[-_]wifi.*daemon"],
                                capture_output=True, text=True)
             pids = [int(p) for p in r.stdout.strip().split()
                     if p and int(p) != os.getpid()]
@@ -704,6 +704,74 @@ def cmd_daemon():
                 log(f"✖ Login failed: {msg}")
                 time.sleep(15)
 
+def cmd_start() -> int:
+    """Start the background keepalive watchdog daemon via systemd user service."""
+    username, password = get_active_credentials()
+    if not username or not password:
+        print_err("No credentials configured.")
+        print(_c(YELLOW, "  Run 'pesu-wifi add' first to save credentials."))
+        return 1
+
+    daemon_active, daemon_pid = is_daemon_running()
+    if daemon_active:
+        pid_str = f" (PID: {daemon_pid})" if daemon_pid else ""
+        print_ok(f"PESU WiFi daemon is already running{pid_str}.")
+        return 0
+
+    print_info("Starting PESU WiFi daemon (systemd user service)...")
+    try:
+        res = subprocess.run(["systemctl", "--user", "start", "pesu-wifi.service"], capture_output=True, text=True)
+        if res.returncode == 0:
+            time.sleep(0.6)
+            active, pid = is_daemon_running()
+            if active:
+                pid_str = f" (PID: {pid})" if pid else ""
+                print_ok(f"PESU WiFi daemon started successfully{pid_str}.")
+                return 0
+            else:
+                log_res = subprocess.run(
+                    ["journalctl", "--user", "-u", "pesu-wifi.service", "-n", "3", "--no-pager"],
+                    capture_output=True, text=True)
+                print_warn("Daemon attempted to start but may have exited.")
+                if log_res.stdout:
+                    print(_c(DIM, log_res.stdout.strip()))
+                return 1
+        else:
+            err = res.stderr.strip() or res.stdout.strip()
+            print_err(f"Failed to start systemd service: {err}")
+            return 1
+    except Exception as e:
+        print_err(f"Error starting daemon: {e}")
+        return 1
+
+def cmd_stop() -> int:
+    """Stop the background keepalive watchdog daemon."""
+    print_info("Stopping PESU WiFi daemon...")
+
+    try:
+        subprocess.run(["systemctl", "--user", "stop", "pesu-wifi.service"], capture_output=True, text=True)
+    except Exception:
+        pass
+
+    try:
+        subprocess.run(["pkill", "-f", "pesu[-_]wifi.*daemon"], capture_output=True)
+    except Exception:
+        pass
+
+    time.sleep(0.5)
+    still_active, _ = is_daemon_running()
+    if not still_active:
+        print_ok("PESU WiFi daemon stopped.")
+        return 0
+    else:
+        print_warn("Daemon process may still be stopping.")
+        return 0
+
+def cmd_restart() -> int:
+    """Restart the background keepalive watchdog daemon."""
+    cmd_stop()
+    return cmd_start()
+
 def print_help():
     banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, 'v2.2')}
 {_c(DIM, 'Automated captive portal login & keepalive watchdog for PES University.')}
@@ -713,6 +781,9 @@ def print_help():
 
 {_c(BOLD, 'COMMANDS:')}
   {_c(GREEN, 'status')}              Show live connection status card
+  {_c(GREEN, 'start')}               Start background keepalive daemon (systemd)
+  {_c(GREEN, 'stop')}                Stop background keepalive daemon
+  {_c(GREEN, 'restart')}             Restart background keepalive daemon
   {_c(GREEN, 'login')} [username]    Smart login; optionally with a specific account
   {_c(GREEN, 'logout')}              Sign out cleanly
   {_c(GREEN, 'select')} [username]   Set default account (alias: {_c(GREEN, 'use')})
@@ -725,6 +796,8 @@ def print_help():
 
 {_c(BOLD, 'EXAMPLES:')}
   pesu-wifi status                  # View live connection overview
+  pesu-wifi start                   # Start background watchdog daemon
+  pesu-wifi stop                    # Stop background watchdog daemon
   pesu-wifi wifi                    # Interactive Wi-Fi network picker
   pesu-wifi wifi PESU-EC-Campus     # Connect directly to SSID
   pesu-wifi login                   # Login with active account
@@ -746,6 +819,12 @@ def main():
         print_help()
     elif cmd == "status":
         cmd_status()
+    elif cmd == "start":
+        sys.exit(cmd_start())
+    elif cmd == "stop":
+        sys.exit(cmd_stop())
+    elif cmd == "restart":
+        sys.exit(cmd_restart())
     elif cmd == "login":
         target = args[0] if args else None
         sys.exit(cmd_login(target))
