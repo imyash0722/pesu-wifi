@@ -13,3 +13,9 @@ __pycache__/
 /aur/*.pkg.tar.*
 /src/
 /pkg/
+
+# Python packaging artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
