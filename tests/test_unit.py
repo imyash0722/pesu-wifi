@@ -2,6 +2,8 @@
 """
 Unit tests for pesu_wifi module (offline, no network required).
 """
+from __future__ import annotations
+
 import os
 import stat
 import tempfile
