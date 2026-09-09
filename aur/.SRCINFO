@@ -1,6 +1,6 @@
 pkgbase = pesu-wifi-git
 	pkgdesc = Automated captive portal login manager and keepalive watchdog daemon for PES University WiFi
-	pkgver = 2.3.0
+	pkgver = 2.3.0.r0.g56c2e96
 	pkgrel = 1
 	url = https://github.com/imyash0722/pesu-wifi
 	install = pesu-wifi.install
