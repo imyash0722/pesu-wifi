@@ -3,6 +3,8 @@
 PESU WiFi Login Manager & Resilient Watchdog Daemon
 Automated captive portal login manager and keepalive daemon for PES University.
 """
+from __future__ import annotations
+
 __version__ = "2.3.0"
 
 import sys
