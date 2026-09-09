@@ -5,6 +5,7 @@ A lightweight, high-performance automated captive portal login manager and keepa
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases)
 [![Arch Package](https://img.shields.io/badge/Arch%20Linux-.pkg.tar.zst-1793d1.svg)](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0)
+[![CI](https://github.com/imyash0722/pesu-wifi/actions/workflows/ci.yml/badge.svg)](https://github.com/imyash0722/pesu-wifi/actions/workflows/ci.yml)
 
 ---
 
@@ -139,6 +140,9 @@ pesu-wifi daemon
 
 # View live daemon logs
 journalctl --user -u pesu-wifi.service -f
+
+# Check version
+pesu-wifi version
 ```
 
 ---
@@ -207,6 +211,11 @@ To remove `pesu-wifi`:
 **If installed via AUR or `.pkg.tar.zst`:**
 ```bash
 sudo pacman -R pesu-wifi-git
+```
+
+**If installed via pipx:**
+```bash
+pipx uninstall pesu-wifi
 ```
 
 **If installed via `install.sh`:**
