@@ -190,7 +190,8 @@ def get_timestamp() -> int:
 def clean_message(raw: str) -> str:
     return html.unescape(raw or "").strip()
 
-def get_active_wifi_ssid() -> str:
+def get_current_wifi_ssid() -> str | None:
+    """Returns the actual active 802-11-wireless SSID/connection name, or None if not connected."""
     try:
         res = subprocess.run(
             ["nmcli", "-t", "-f", "name,type", "connection", "show", "--active"],
@@ -200,6 +201,23 @@ def get_active_wifi_ssid() -> str:
                 return line.split(":")[0]
     except Exception:
         pass
+    return None
+
+def is_campus_ssid(ssid: str | None) -> bool:
+    """Checks if the given SSID belongs to a PES University campus network."""
+    if not ssid:
+        return False
+    data = load_config_data()
+    preferred = data.get("preferred_ssid") or DEFAULT_WIFI_CON
+    if ssid == preferred:
+        return True
+    s = ssid.upper()
+    return "PESU" in s or "PES-WIFI" in s or "PES_WIFI" in s or "PESUNIVERSITY" in s
+
+def get_active_wifi_ssid() -> str:
+    current = get_current_wifi_ssid()
+    if current:
+        return current
     data = load_config_data()
     return data.get("preferred_ssid") or DEFAULT_WIFI_CON
 
@@ -279,8 +297,12 @@ def do_logout(username: str | None = None) -> tuple[bool, str]:
         return False, f"Portal unreachable ({e})"
 
 def heal_network(tier: int):
-    """Multi-tier self-healing: reconnect SSID → cycle radio → restart NetworkManager."""
-    wifi_con = get_active_wifi_ssid()
+    """Multi-tier self-healing: reconnect SSID → cycle radio → bounce interface."""
+    wifi_con = get_current_wifi_ssid() or get_active_wifi_ssid()
+    if not is_campus_ssid(wifi_con):
+        log(f"[Self-Healing] Skipped: '{wifi_con}' is not a PESU campus network.")
+        return
+
     try:
         if tier == 1:
             log(f"[Self-Healing L1] Reconnecting to '{wifi_con}'...")
@@ -293,9 +315,24 @@ def heal_network(tier: int):
             time.sleep(5)
             subprocess.run(["nmcli", "connection", "up", wifi_con], timeout=20)
         elif tier == 3:
-            log("[Self-Healing L3] Restarting NetworkManager...")
-            subprocess.run(["systemctl", "restart", "NetworkManager"], timeout=20)
-            time.sleep(6)
+            log("[Self-Healing L3] Re-engaging Wi-Fi device interface...")
+            if os.geteuid() == 0:
+                subprocess.run(["systemctl", "restart", "NetworkManager"], timeout=20)
+                time.sleep(6)
+            else:
+                try:
+                    dev_res = subprocess.run(
+                        ["nmcli", "-t", "-f", "DEVICE,TYPE", "dev"],
+                        capture_output=True, text=True, timeout=3)
+                    for line in dev_res.stdout.strip().splitlines():
+                        if ":wifi" in line:
+                            dev_name = line.split(":")[0]
+                            subprocess.run(["nmcli", "device", "disconnect", dev_name], timeout=10)
+                            time.sleep(2)
+                            subprocess.run(["nmcli", "device", "connect", dev_name], timeout=15)
+                            break
+                except Exception:
+                    pass
             subprocess.run(["nmcli", "connection", "up", wifi_con], timeout=20)
     except Exception as err:
         log(f"Self-healing Tier {tier} error: {err}")
@@ -652,17 +689,42 @@ def cmd_daemon():
     log(f"Starting keepalive watchdog for '{username}' (interval: {KEEP_ALIVE_INTERVAL}s)...")
     unreachable_streak = 0
     consecutive_session_drops = 0
+    last_standby_state = None
 
     while True:
         curr_user, curr_pwd = get_active_credentials()
         if curr_user and curr_pwd:
             username, password = curr_user, curr_pwd
 
+        current_ssid = get_current_wifi_ssid()
+
+        # 0. Check if connected to a campus network
+        if current_ssid and not is_campus_ssid(current_ssid):
+            if last_standby_state != f"off-campus:{current_ssid}":
+                log(f"Connected to non-campus Wi-Fi '{current_ssid}'. Watchdog in standby (polling in {KEEP_ALIVE_INTERVAL}s)...")
+                last_standby_state = f"off-campus:{current_ssid}"
+            unreachable_streak = 0
+            consecutive_session_drops = 0
+            time.sleep(KEEP_ALIVE_INTERVAL)
+            continue
+        elif not current_ssid:
+            if last_standby_state != "disconnected":
+                log("Wi-Fi disconnected. Waiting for connection...")
+                last_standby_state = "disconnected"
+            unreachable_streak = 0
+            consecutive_session_drops = 0
+            time.sleep(15)
+            continue
+        else:
+            if last_standby_state is not None:
+                log(f"Connected to campus Wi-Fi '{current_ssid}'. Resuming active keepalive watchdog.")
+                last_standby_state = None
+
         # 1. Check if portal gateway is online
         if not is_portal_online():
             unreachable_streak += 1
             consecutive_session_drops = 0
-            log(f"⚠ Portal gateway unreachable (streak: {unreachable_streak}).")
+            log(f"⚠ Portal gateway unreachable on '{current_ssid}' (streak: {unreachable_streak}).")
             if unreachable_streak == 3:
                 heal_network(1)
                 time.sleep(10)
