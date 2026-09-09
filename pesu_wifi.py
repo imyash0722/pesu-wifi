@@ -206,7 +206,7 @@ def get_active_wifi_ssid() -> str:
 def is_portal_online() -> bool:
     """Fast check (20-40ms) whether the portal gateway responds."""
     try:
-        r = _request("GET", PORTAL_BASE, timeout=2.0)
+        r = _request("GET", PORTAL_BASE, timeout=4.0)
         return r.status_code == 200
     except Exception:
         return False
@@ -224,7 +224,7 @@ def check_live(username: str | None = None) -> bool:
         r = _request("GET", LIVE_URL, params={
             "mode": 192, "username": username,
             "a": get_timestamp(), "producttype": 0,
-        }, timeout=2.0)
+        }, timeout=4.0)
         root = ET.fromstring(r.text)
         ack    = (root.findtext("ack")    or "").strip().lower()
         status = (root.findtext("status") or "").strip().lower()
