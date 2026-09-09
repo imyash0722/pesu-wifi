@@ -28,6 +28,9 @@ package() {
   cd "${srcdir}/${_pkgname}"
   install -Dm755 pesu_wifi.py "${pkgdir}/usr/bin/pesu-wifi"
   install -Dm644 pesu-wifi.service "${pkgdir}/usr/lib/systemd/user/pesu-wifi.service"
+  install -Dm644 completions/pesu-wifi.bash "${pkgdir}/usr/share/bash-completion/completions/pesu-wifi"
+  install -Dm644 completions/pesu-wifi.zsh "${pkgdir}/usr/share/zsh/site-functions/_pesu-wifi"
+  install -Dm644 completions/pesu-wifi.fish "${pkgdir}/usr/share/fish/vendor_completions.d/pesu-wifi.fish"
   install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
   if [ -f LICENSE ]; then
     install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"

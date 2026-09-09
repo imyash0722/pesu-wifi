@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pesu-wifi"
+version = "2.3.0"
+description = "Automated captive portal login manager and keepalive watchdog daemon for PES University WiFi"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Yash Sharma", email = "imyash0722@users.noreply.github.com" },
+    { name = "Tin", email = "yatinrajesh77@gmail.com" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.25.0"
+]
+keywords = ["pesu", "captive-portal", "wifi", "networkmanager", "daemon", "pes-university"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Monitoring",
+]
+
+[project.urls]
+Homepage = "https://github.com/imyash0722/pesu-wifi"
+Repository = "https://github.com/imyash0722/pesu-wifi.git"
+Issues = "https://github.com/imyash0722/pesu-wifi/issues"
+
+[project.scripts]
+pesu-wifi = "pesu_wifi:main"
+
+[tool.setuptools]
+py-modules = ["pesu_wifi"]
