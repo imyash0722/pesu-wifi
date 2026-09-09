@@ -47,6 +47,16 @@ def get_time_str():
 def log(msg):
     print(f"{_c(DIM, get_time_str())} {msg}", flush=True)
 
+def notify_desktop(title: str, message: str, urgency: str = "normal"):
+    """Send a non-blocking desktop notification via notify-send if available."""
+    try:
+        subprocess.run(
+            ["notify-send", "-a", "PESU WiFi", "-u", urgency, title, message],
+            capture_output=True, timeout=2
+        )
+    except Exception:
+        pass
+
 # ── Configuration & Paths ─────────────────────────────────────────────────────
 PORTAL_BASE         = os.getenv("PESU_PORTAL_BASE", "http://192.168.254.1:8090")
 LOGIN_URL           = f"{PORTAL_BASE}/login.xml"
@@ -428,9 +438,11 @@ def cmd_login(target_user: str | None = None):
     success, msg = do_login(username, password)
     if success:
         print_ok(f"Logged in as '{username}'.")
+        notify_desktop("PESU WiFi", f"Logged in as {username}")
         return 0
     else:
         print_err(f"Login failed: {msg}")
+        notify_desktop("PESU WiFi Login Failed", msg, urgency="critical")
         return 1
 
 def cmd_logout():
@@ -448,6 +460,7 @@ def cmd_logout():
     success, msg = do_logout(username)
     if success:
         print_ok("Logged out successfully.")
+        notify_desktop("PESU WiFi", "Logged out successfully")
         return 0
     else:
         print_err(f"Logout failed: {msg}")
@@ -767,9 +780,11 @@ def cmd_daemon():
             ok, msg = do_login(username, password)
             if ok:
                 log(f"✔ Logged in as '{username}'. Next check in {KEEP_ALIVE_INTERVAL}s.")
+                notify_desktop("PESU WiFi", f"Session restored: Logged in as {username}")
                 time.sleep(KEEP_ALIVE_INTERVAL)
             else:
                 log(f"✖ Login failed: {msg}")
+                notify_desktop("PESU WiFi Login Failed", msg, urgency="critical")
                 time.sleep(15)
 
 def cmd_start() -> int:
