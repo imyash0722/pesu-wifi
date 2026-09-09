@@ -107,19 +107,25 @@ def load_config_data() -> dict:
 
 def save_config_data(data: dict):
     conf_dir = get_config_dir()
-    os.makedirs(conf_dir, exist_ok=True)
+    os.makedirs(conf_dir, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(conf_dir, 0o700)
+    except Exception:
+        pass
+
     json_path = os.path.join(conf_dir, "config.json")
     env_path  = os.path.join(conf_dir, ".env")
 
-    with open(json_path, "w", encoding="utf-8") as f:
+    # Atomically create files with restricted 0600 permissions to avoid umask race conditions
+    fd = os.open(json_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with open(fd, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    os.chmod(json_path, 0o600)
 
     active = data.get("active_user")
     pwd = data.get("accounts", {}).get(active, "") if active else ""
-    with open(env_path, "w", encoding="utf-8") as f:
+    fd = os.open(env_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with open(fd, "w", encoding="utf-8") as f:
         f.write(f"# PESU WiFi Saved Credentials\nPESU_USERNAME={active or ''}\nPESU_PASSWORD={pwd or ''}\n")
-    os.chmod(env_path, 0o600)
 
 def get_active_credentials() -> tuple[str | None, str | None]:
     data = load_config_data()
