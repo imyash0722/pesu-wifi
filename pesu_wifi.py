@@ -3,6 +3,8 @@
 PESU WiFi Login Manager & Resilient Watchdog Daemon
 Automated captive portal login manager and keepalive daemon for PES University.
 """
+__version__ = "2.3.0"
+
 import sys
 import os
 import time
@@ -290,8 +292,12 @@ def do_login(username: str, password: str) -> tuple[bool, str]:
             return True, f"Signed in as {username}"
         if "signed in" in message.lower() or "you are signed in" in message.lower():
             return True, f"Signed in as {username}"
-        if "failed" in message.lower() or "invalid" in message.lower():
-            return False, message
+        if status in ("FAILED", "FAIL", "ERROR", "DENIED") or any(
+            w in message.lower() for w in ("failed", "invalid", "could not log", "incorrect", "denied", "exceeded", "limit")
+        ):
+            return False, message or "Login failed"
+        if status:
+            return False, message or f"Login failed (status: {status})"
         return True, message or f"Signed in as {username}"
     except Exception as e:
         return False, f"Portal unreachable ({e})"
@@ -856,7 +862,7 @@ def cmd_restart() -> int:
     return cmd_start()
 
 def print_help():
-    banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, 'v2.2')}
+    banner = f"""{_c(BOLD + CYAN, 'PESU WiFi Manager')} {_c(DIM, f'v{__version__}')}
 {_c(DIM, 'Automated captive portal login & keepalive watchdog for PES University.')}
 
 {_c(BOLD, 'USAGE:')}
@@ -875,6 +881,7 @@ def print_help():
   {_c(GREEN, 'del')} [username]      Remove a saved account
   {_c(GREEN, 'list')} [-p]           List saved accounts; -p to show passwords
   {_c(GREEN, 'daemon')}              Run keepalive watchdog in foreground ({KEEP_ALIVE_INTERVAL}s polling)
+  {_c(GREEN, 'version')}             Show version information
   {_c(GREEN, 'help')}                Show this message
 
 {_c(BOLD, 'EXAMPLES:')}
@@ -900,6 +907,9 @@ def main():
 
     if cmd in ("-h", "--help", "help"):
         print_help()
+    elif cmd in ("-v", "--version", "version"):
+        print(f"pesu-wifi v{__version__}")
+        sys.exit(0)
     elif cmd == "status":
         cmd_status()
     elif cmd == "start":
