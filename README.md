@@ -6,6 +6,7 @@ A lightweight, high-performance automated captive portal login manager and keepa
 [![Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases)
 [![Arch Package](https://img.shields.io/badge/Arch%20Linux-.pkg.tar.zst-1793d1.svg)](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0)
 [![CI](https://github.com/imyash0722/pesu-wifi/actions/workflows/ci.yml/badge.svg)](https://github.com/imyash0722/pesu-wifi/actions/workflows/ci.yml)
+[![Changelog](https://img.shields.io/badge/Changelog-Release%20Notes-green.svg)](CHANGELOG.md)
 
 ---
 
@@ -224,6 +225,16 @@ systemctl --user disable --now pesu-wifi.service
 rm -f ~/.local/bin/pesu-wifi ~/.config/systemd/user/pesu-wifi.service
 systemctl --user daemon-reload
 ```
+
+---
+
+## Release History & Changelog
+
+See [**CHANGELOG.md**](CHANGELOG.md) for full commit-by-commit technical breakdowns, architectural notes, and upgrade guides for every release.
+
+- [**v2.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0) — Process controls (`start`/`stop`/`restart`), campus SSID auto-standby, desktop notifications, atomic umask hardening, anti-storm jitter protection, and multi-packaging CI.
+- [**v2.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.2.0) — Interactive Wi-Fi selector, sub-second gateway detection, multi-account credentials management, and verification suite.
+- [**v2.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.0.0) — Initial rewritten Python CLI release with automated Cyberoam login & keepalive.
 
 ---
 
