@@ -28,8 +28,8 @@ _pesu_wifi() {
     case $words[2] in
         login|select|use|del)
             local -a accounts
-            if [[ -f "$HOME/.config/pesu-wifi/config.json" ]]; then
-                accounts=(${(f)"$(python3 -c 'import json, os; print("\n".join(json.load(open(os.path.expanduser("~/.config/pesu-wifi/config.json"))).get("accounts", {}).keys()))' 2>/dev/null)"})
+            if (( $+commands[pesu-wifi] )); then
+                accounts=(${(f)"$(pesu-wifi __list-accounts 2>/dev/null)"})
             fi
             _describe -t accounts 'account' accounts
             ;;
