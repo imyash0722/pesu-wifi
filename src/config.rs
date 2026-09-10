@@ -187,4 +187,46 @@ mod tests {
         assert_eq!(deserialized.accounts.get("testuser").unwrap(), "testpass");
         assert_eq!(deserialized.preferred_ssid, Some("PESU-EC-Campus".to_string()));
     }
+
+    #[test]
+    fn test_save_and_load_config_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = std::env::temp_dir().join(format!("pesu_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&temp_dir);
+        std::env::set_var("XDG_CONFIG_HOME", &temp_dir);
+
+        let mut accounts = HashMap::new();
+        accounts.insert("PES2UG25CS000".to_string(), "secretPass123".to_string());
+        let cfg = Config {
+            active_user: Some("PES2UG25CS000".to_string()),
+            accounts,
+            preferred_ssid: Some("PESU-EC-Campus".to_string()),
+        };
+
+        save_config(&cfg).unwrap();
+
+        let loaded = load_config();
+        assert_eq!(loaded.active_user, Some("PES2UG25CS000".to_string()));
+        assert_eq!(
+            loaded.accounts.get("PES2UG25CS000").map(|s| s.as_str()),
+            Some("secretPass123")
+        );
+        assert_eq!(loaded.preferred_ssid, Some("PESU-EC-Campus".to_string()));
+
+        let json_path = temp_dir.join("pesu-wifi").join("config.json");
+        let env_path = temp_dir.join("pesu-wifi").join(".env");
+        assert!(json_path.is_file());
+        assert!(env_path.is_file());
+
+        let json_mode = std::fs::metadata(&json_path).unwrap().permissions().mode() & 0o777;
+        let env_mode = std::fs::metadata(&env_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(json_mode, 0o600);
+        assert_eq!(env_mode, 0o600);
+
+        let dir_mode = std::fs::metadata(temp_dir.join("pesu-wifi")).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dir_mode, 0o700);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }
