@@ -1,8 +1,8 @@
 # fish completion for pesu-wifi
 
 function __pesu_wifi_get_accounts
-    if test -f "$HOME/.config/pesu-wifi/config.json"
-        python3 -c 'import json, os; print("\n".join(json.load(open(os.path.expanduser("~/.config/pesu-wifi/config.json"))).get("accounts", {}).keys()))' 2>/dev/null
+    if type -q pesu-wifi
+        pesu-wifi __list-accounts 2>/dev/null
     end
 end
 

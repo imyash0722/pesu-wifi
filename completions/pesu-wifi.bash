@@ -14,8 +14,8 @@ _pesu_wifi_completions() {
     case "${prev}" in
         login|select|use|del)
             local accounts=""
-            if [[ -f "$HOME/.config/pesu-wifi/config.json" ]]; then
-                accounts=$(python3 -c 'import json, os; print(" ".join(json.load(open(os.path.expanduser("~/.config/pesu-wifi/config.json"))).get("accounts", {}).keys()))' 2>/dev/null)
+            if command -v pesu-wifi &>/dev/null; then
+                accounts=$(pesu-wifi __list-accounts 2>/dev/null)
             fi
             COMPREPLY=( $(compgen -W "${accounts}" -- "${cur}") )
             return 0

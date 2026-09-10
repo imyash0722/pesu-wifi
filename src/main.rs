@@ -91,14 +91,14 @@ fn cmd_status() {
         let pad = " ".repeat(pad_len);
         let bl = color(&format!("{}{}", BOLD, CYAN), "│");
         let br = color(&format!("{}{}", BOLD, CYAN), "│");
+        let padded_label = format!("{:<width$}", label, width = label_width);
         println!(
-            "{}  {:<width$} : {}{}  {}",
+            "{}  {} : {}{}  {}",
             bl,
-            color(BOLD, label),
+            color(BOLD, &padded_label),
             val,
             pad,
-            br,
-            width = label_width
+            br
         );
     }
     println!("{}", bot_border);
@@ -580,6 +580,13 @@ fn main() {
             let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords");
             std::process::exit(cmd_list(show_pw));
         }
+        "__list-accounts" => {
+            let cfg = config::load_config();
+            for user in cfg.accounts.keys() {
+                println!("{}", user);
+            }
+            std::process::exit(0);
+        }
         "daemon" => {
             daemon::run_daemon();
         }
@@ -634,6 +641,17 @@ mod tests {
         assert_eq!(
             clean_message(dirty),
             "The system could not log you on. Make sure your password is correct"
+        );
+    }
+
+    #[test]
+    fn test_parse_xml_failed_status() {
+        let xml = "<requestresponse><status><![CDATA[FAILED]]></status><message><![CDATA[The system could not log you on. Make sure your password is correct]]></message></requestresponse>";
+        let parsed = parse_xml(xml);
+        assert_eq!(parsed.get("status").map(|s| s.as_str()), Some("FAILED"));
+        assert_eq!(
+            parsed.get("message").map(|s| s.as_str()),
+            Some("The system could not log you on. Make sure your password is correct")
         );
     }
 }
