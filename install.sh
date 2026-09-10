@@ -26,12 +26,14 @@ cd "$SCRIPT_DIR"
 cargo build --release
 
 mkdir -p "$BIN_DIR"
+rm -f "$BIN_DIR/pesu-wifi"
 cp "$SCRIPT_DIR/target/release/pesu-wifi" "$BIN_DIR/pesu-wifi"
 chmod +x "$BIN_DIR/pesu-wifi"
 echo "  ✔ Installed binary to: $BIN_DIR/pesu-wifi"
 
 # Try installing to /usr/local/bin if writable
 if [ -w "/usr/local/bin" ]; then
+    rm -f "/usr/local/bin/pesu-wifi"
     cp "$SCRIPT_DIR/target/release/pesu-wifi" "/usr/local/bin/pesu-wifi"
     echo "  ✔ Copied to /usr/local/bin/pesu-wifi"
 fi
