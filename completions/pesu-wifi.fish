@@ -20,6 +20,7 @@ complete -c pesu-wifi -n "__fish_use_subcommand" -a add -d "Save or update login
 complete -c pesu-wifi -n "__fish_use_subcommand" -a del -d "Remove a saved account"
 complete -c pesu-wifi -n "__fish_use_subcommand" -a list -d "List saved accounts"
 complete -c pesu-wifi -n "__fish_use_subcommand" -a daemon -d "Run keepalive daemon in foreground"
+complete -c pesu-wifi -n "__fish_use_subcommand" -a version -d "Show version information"
 complete -c pesu-wifi -n "__fish_use_subcommand" -a help -d "Show help message"
 
 # Account completions for login, select, use, del

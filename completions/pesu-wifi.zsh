@@ -16,6 +16,7 @@ _pesu_wifi() {
         'del:Remove a saved account'
         'list:List saved accounts'
         'daemon:Run keepalive watchdog in foreground'
+        'version:Show version information'
         'help:Show help message'
     )
 

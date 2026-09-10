@@ -1,14 +1,14 @@
 # Maintainer: imyash0722 <imyash0722@users.noreply.github.com>
 pkgname=pesu-wifi-git
 _pkgname=pesu-wifi
-pkgver=2.3.0.r0.g56c2e96
+pkgver=3.0.0.r0.g56c2e96
 pkgrel=1
-pkgdesc="Automated captive portal login manager and keepalive watchdog daemon for PES University WiFi"
-arch=('any')
+pkgdesc="High-performance native Rust captive portal login manager and keepalive watchdog daemon for PES University WiFi"
+arch=('x86_64' 'aarch64' 'armv7h')
 url="https://github.com/imyash0722/pesu-wifi"
 license=('MIT')
-depends=('python' 'python-requests' 'networkmanager')
-makedepends=('git')
+depends=('networkmanager')
+makedepends=('git' 'cargo')
 provides=("${_pkgname}")
 conflicts=("${_pkgname}")
 install=pesu-wifi.install
@@ -24,9 +24,14 @@ pkgver() {
   fi
 }
 
+build() {
+  cd "${srcdir}/${_pkgname}"
+  cargo build --release --locked
+}
+
 package() {
   cd "${srcdir}/${_pkgname}"
-  install -Dm755 pesu_wifi.py "${pkgdir}/usr/bin/pesu-wifi"
+  install -Dm755 target/release/pesu-wifi "${pkgdir}/usr/bin/pesu-wifi"
   install -Dm644 pesu-wifi.service "${pkgdir}/usr/lib/systemd/user/pesu-wifi.service"
   install -Dm644 completions/pesu-wifi.bash "${pkgdir}/usr/share/bash-completion/completions/pesu-wifi"
   install -Dm644 completions/pesu-wifi.zsh "${pkgdir}/usr/share/zsh/site-functions/_pesu-wifi"
