@@ -45,8 +45,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 
 ### v3.0.0 Architecture & Modular Breakdown
 
-- **`src/main.rs`:** CLI entry point, argument parsing via `clap` (derive macro), command routing (`status`, `login`, `logout`, `select`/`use`, `wifi`, `add`, `del`, `list`, `daemon`, `start`, `stop`, `restart`, `version`, `help`), and ANSI card visualization.
-- **`src/portal.rs`:** Cyberoam captive portal HTTP client powered by `ureq` with `rustls-webpki-roots`. Handles login (`mode=191`), keepalive (`mode=193`), and logout (`mode=193`), with full CDATA and HTML entity parsing.
+- **`src/main.rs`:** CLI entry point, zero-dependency sub-millisecond argument parsing, command routing (`status`, `login`, `logout`, `select`/`use`, `wifi`, `add`, `del`, `list`, `daemon`, `start`, `stop`, `restart`, `version`, `help`), and ANSI card visualization.
+- **`src/portal.rs`:** Cyberoam captive portal HTTP client powered by `ureq` with `rustls-webpki-roots`. Handles login (`mode=191`), keepalive (`mode=192`), and logout (`mode=193`), with full CDATA and HTML entity parsing.
 - **`src/config.rs`:** Multi-account JSON/ENV configuration store with atomic file permission masking (`0600`), active account selection, and directory traversal fallbacks.
 - **`src/wifi.rs`:** `nmcli` Wi-Fi management interface, automatic campus SSID verification (`PESU-EC-Campus`, `PES-RR-Campus`, `PESU-Guest`), access point scanning, and multi-tier network self-healing.
 - **`src/daemon.rs`:** Resilient 60s keepalive watchdog daemon, file-based singleton lock (`fs2`), desktop notifications via `notify-send`, and systemd user unit orchestration.

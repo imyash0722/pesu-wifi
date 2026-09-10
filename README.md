@@ -192,6 +192,27 @@ See [**CHANGELOG.md**](CHANGELOG.md) for full commit-by-commit technical breakdo
 
 ---
 
+## Uninstallation
+
+To remove `pesu-wifi`:
+
+**If installed via AUR or `.pkg.tar.zst`:**
+```bash
+sudo pacman -R pesu-wifi-git
+```
+
+**If installed via `install.sh` / source:**
+```bash
+systemctl --user disable --now pesu-wifi.service
+rm -f ~/.local/bin/pesu-wifi /usr/local/bin/pesu-wifi
+rm -f ~/.config/systemd/user/pesu-wifi.service
+rm -f ~/.local/share/bash-completion/completions/pesu-wifi
+rm -f ~/.config/fish/completions/pesu-wifi.fish
+systemctl --user daemon-reload
+```
+
+---
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
