@@ -274,3 +274,20 @@ pub fn heal_network(tier: u8) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_campus_ssid() {
+        assert!(is_campus_ssid("PESU-EC-Campus"));
+        assert!(is_campus_ssid("PESU-RR-Campus"));
+        assert!(is_campus_ssid("PES-WIFI"));
+        assert!(is_campus_ssid("PES_WIFI"));
+        assert!(is_campus_ssid("pesuniversity-guest"));
+        assert!(!is_campus_ssid("Home_Network"));
+        assert!(!is_campus_ssid("Space"));
+        assert!(!is_campus_ssid(""));
+    }
+}

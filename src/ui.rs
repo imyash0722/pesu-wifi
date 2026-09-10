@@ -60,3 +60,17 @@ pub fn get_time_str() -> String {
 pub fn log(msg: &str) {
     println!("{} {}", color(DIM, &get_time_str()), msg);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_visual_len() {
+        let plain = "PESU WiFi Status";
+        let colored = format!("{}{}{}\x1b[0m", BOLD, GREEN, plain);
+        assert_eq!(visual_len(plain), plain.len());
+        assert_eq!(visual_len(&colored), plain.len());
+        assert_eq!(visual_len(""), 0);
+    }
+}
