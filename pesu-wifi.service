@@ -1,11 +1,10 @@
 [Unit]
-Description=PESU WiFi Simple Login Manager & Keepalive Daemon
+Description=PESU WiFi Login Manager & Keepalive Watchdog Daemon
 After=network-online.target NetworkManager.service
 Wants=network-online.target NetworkManager.service
 
 [Service]
 Type=simple
-Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/pesu-wifi daemon
 Restart=always
 RestartSec=5

@@ -6,41 +6,37 @@ BIN_DIR="$HOME/.local/bin"
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
 
 echo "=========================================="
-echo " PESU WiFi Login Manager & Daemon Setup"
+echo " PESU WiFi Rust CLI & Daemon Setup"
 echo "=========================================="
 echo ""
 
-# 1. Ensure Python dependencies
-echo "[1/4] Checking python-requests dependency..."
-if ! python3 -c "import requests" &>/dev/null; then
-    echo "Installing 'requests' module..."
-    if command -v pacman &>/dev/null; then
-        sudo pacman -S --needed --noconfirm python-requests || pip install requests --break-system-packages
-    elif command -v apt &>/dev/null; then
-        sudo apt-get install -y python3-requests || pip install requests --break-system-packages
-    elif command -v dnf &>/dev/null; then
-        sudo dnf install -y python3-requests || pip install requests --break-system-packages
-    else
-        pip install requests
-    fi
+# 1. Ensure Rust toolchain
+echo "[1/4] Checking Rust toolchain..."
+if ! command -v cargo &>/dev/null; then
+    echo "Cargo is not installed. Installing Rust via rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
 else
-    echo "  ✔ python-requests is already installed."
+    echo "  ✔ Cargo is installed: $(cargo --version)"
 fi
 
-# 2. Setup binary symlink & PATH
-echo "[2/4] Setting up CLI symlink..."
+# 2. Build release binary
+echo "[2/4] Building high-performance release binary..."
+cd "$SCRIPT_DIR"
+cargo build --release
+
 mkdir -p "$BIN_DIR"
-chmod +x "$SCRIPT_DIR/pesu_wifi.py"
-ln -sf "$SCRIPT_DIR/pesu_wifi.py" "$BIN_DIR/pesu-wifi"
-echo "  ✔ Symlinked: $BIN_DIR/pesu-wifi -> $SCRIPT_DIR/pesu_wifi.py"
+cp "$SCRIPT_DIR/target/release/pesu-wifi" "$BIN_DIR/pesu-wifi"
+chmod +x "$BIN_DIR/pesu-wifi"
+echo "  ✔ Installed binary to: $BIN_DIR/pesu-wifi"
 
-# Try symlinking to /usr/local/bin if accessible (for immediate system-wide PATH availability)
+# Try installing to /usr/local/bin if writable
 if [ -w "/usr/local/bin" ]; then
-    ln -sf "$SCRIPT_DIR/pesu_wifi.py" "/usr/local/bin/pesu-wifi"
-    echo "  ✔ Symlinked to /usr/local/bin/pesu-wifi"
+    cp "$SCRIPT_DIR/target/release/pesu-wifi" "/usr/local/bin/pesu-wifi"
+    echo "  ✔ Copied to /usr/local/bin/pesu-wifi"
 fi
 
-# Ensure ~/.local/bin is in shell PATH config files
+# Ensure ~/.local/bin is in shell PATH
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.profile"; do
     if [ -f "$rcfile" ]; then
         if ! grep -q '\.local/bin' "$rcfile"; then
@@ -86,7 +82,7 @@ fi
 # Start service if credentials exist
 if [ -f "$HOME/.config/pesu-wifi/config.json" ] || [ -f "$HOME/.config/pesu-wifi/.env" ]; then
     systemctl --user restart pesu-wifi.service 2>/dev/null || true
-    echo "  ✔ Background service configured and started."
+    echo "  ✔ Background service configured and running."
 else
     echo "  ⚠ Note: Run 'pesu-wifi add' then 'pesu-wifi start' to start the daemon."
 fi
@@ -99,7 +95,7 @@ echo ""
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* && ! -f "/usr/local/bin/pesu-wifi" ]]; then
     echo "⚠ Note: ~/.local/bin is not in your current terminal's PATH yet."
     echo "  Run:  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    echo "  Or simply open a new terminal window / reload your shell."
+    echo "  Or open a new terminal window / reload your shell."
     echo ""
 fi
 

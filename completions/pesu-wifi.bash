@@ -4,7 +4,7 @@ _pesu_wifi_completions() {
     local cur prev commands
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="status start stop restart login logout select use wifi add del list daemon help"
+    commands="status start stop restart login logout select use wifi add del list daemon version help"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
         COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )

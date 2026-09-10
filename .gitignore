@@ -1,7 +1,6 @@
+/target/
 __pycache__/
 *.py[cod]
-*$py.class
-*.sock
 *.log
 .DS_Store
 
@@ -11,7 +10,6 @@ __pycache__/
 /aur/pkg/
 /aur/pesu-wifi/
 /aur/*.pkg.tar.*
-/src/
 /pkg/
 
 # Python packaging artifacts
