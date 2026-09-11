@@ -23,18 +23,42 @@ fi
 # 2. Build release binary
 echo "[2/4] Building high-performance release binary..."
 cd "$SCRIPT_DIR"
+
+# Protect against metadata corruption on non-POSIX/exFAT filesystems
+if [ -z "$CARGO_TARGET_DIR" ]; then
+    TARGET_FS=$(df -T "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $2}')
+    if [[ "$TARGET_FS" =~ ^(exfat|vfat|msdos|cifs|smb|ntfs|fuseblk)$ ]]; then
+        export CARGO_TARGET_DIR="$HOME/.cache/cargo-target/pesu-wifi"
+        mkdir -p "$CARGO_TARGET_DIR"
+    fi
+fi
+
 cargo build --release
+
+# Locate built binary
+if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/pesu-wifi" ]; then
+    BUILD_BIN="$CARGO_TARGET_DIR/release/pesu-wifi"
+elif [ -f "$SCRIPT_DIR/target/release/pesu-wifi" ]; then
+    BUILD_BIN="$SCRIPT_DIR/target/release/pesu-wifi"
+else
+    BUILD_BIN=$(find "${CARGO_TARGET_DIR:-$HOME/.cache/cargo-target}" "$SCRIPT_DIR/target" -name "pesu-wifi" -type f -perm -111 2>/dev/null | grep -E 'release/pesu-wifi$' | head -n 1)
+fi
+
+if [ -z "$BUILD_BIN" ] || [ ! -f "$BUILD_BIN" ]; then
+    echo "❌ Error: Could not locate built release binary."
+    exit 1
+fi
 
 mkdir -p "$BIN_DIR"
 rm -f "$BIN_DIR/pesu-wifi"
-cp "$SCRIPT_DIR/target/release/pesu-wifi" "$BIN_DIR/pesu-wifi"
+cp "$BUILD_BIN" "$BIN_DIR/pesu-wifi"
 chmod +x "$BIN_DIR/pesu-wifi"
 echo "  ✔ Installed binary to: $BIN_DIR/pesu-wifi"
 
 # Try installing to /usr/local/bin if writable
 if [ -w "/usr/local/bin" ]; then
     rm -f "/usr/local/bin/pesu-wifi"
-    cp "$SCRIPT_DIR/target/release/pesu-wifi" "/usr/local/bin/pesu-wifi"
+    cp "$BUILD_BIN" "/usr/local/bin/pesu-wifi"
     echo "  ✔ Copied to /usr/local/bin/pesu-wifi"
 fi
 
@@ -60,11 +84,7 @@ echo "  ✔ Installed shell completions."
 # 3. Setup systemd user service
 echo "[3/4] Setting up systemd user service..."
 mkdir -p "$SYSTEMD_USER_DIR"
-if [ -x "/usr/bin/pesu-wifi" ]; then
-    cp "$SCRIPT_DIR/pesu-wifi.service" "$SYSTEMD_USER_DIR/pesu-wifi.service"
-else
-    sed "s|/usr/bin/pesu-wifi|$BIN_DIR/pesu-wifi|g" "$SCRIPT_DIR/pesu-wifi.service" > "$SYSTEMD_USER_DIR/pesu-wifi.service"
-fi
+sed "s|/usr/bin/pesu-wifi|$BIN_DIR/pesu-wifi|g" "$SCRIPT_DIR/pesu-wifi.service" > "$SYSTEMD_USER_DIR/pesu-wifi.service"
 
 # 4. Configure background service
 echo "[4/4] Configuring background service..."
