@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
+  - [Overview & Major Highlights](#v310-overview--major-highlights)
 - [v3.0.4 — Strict Standard POSIX Flags & Clean Syntax Enforcement](#v304--strict-standard-posix-flags--clean-syntax-enforcement)
   - [Overview & Major Highlights](#v304-overview--major-highlights)
 - [v3.0.3 — Top-Level Password Flags & Enhanced CLI Flag Support](#v303--top-level-password-flags--enhanced-cli-flag-support)
@@ -25,6 +27,18 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
 - [v2.0.0 — Initial Release](#v200--initial-release)
 - [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.1.0 — Clap Derive Migration & Production CLI Architecture
+
+**Release Date:** September 12, 2026  
+**Git Tag:** [`v3.1.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.1.0)  
+
+### v3.1.0 Overview & Major Highlights
+- **Full Migration to `clap` Derive:** Completely replaced handwritten CLI argument parsing with the industry-standard `clap` crate (`#[derive(Parser, Subcommand)]`).
+- **Automatic Multi-Level Help Generation:** Every subcommand (`pesu-wifi start --help`, `pesu-wifi list --help`, etc.) now generates structured, dedicated help screens automatically.
+- **Robust Argument Parsing & Typo Suggestions:** Non-standard arguments and subcommands are strictly rejected with standard error context and `did you mean?` suggestions.
 
 ---
 

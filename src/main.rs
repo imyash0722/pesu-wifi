@@ -4,6 +4,7 @@ mod portal;
 mod ui;
 mod wifi;
 
+use clap::{Parser, Subcommand};
 use std::cmp::max;
 use std::io::{self, Write};
 use ui::{color, print_err, print_info, print_ok, visual_len, BOLD, CYAN, DIM, GREEN, RED, YELLOW};
@@ -191,28 +192,39 @@ fn cmd_logout() -> i32 {
     }
 }
 
-fn cmd_add(args: &[String]) -> i32 {
-    let (username, password) = if args.len() >= 2 {
-        (args[0].trim().to_string(), args[1].trim().to_string())
-    } else {
-        println!("{}", color(BOLD, "Enter login credentials:"));
-        print!("  username: ");
-        let _ = io::stdout().flush();
-        let mut u = String::new();
-        if io::stdin().read_line(&mut u).is_err() {
-            println!("\nCancelled.");
-            return 1;
+fn cmd_add(user_opt: Option<&str>, pass_opt: Option<&str>) -> i32 {
+    let (username, password) = match (user_opt, pass_opt) {
+        (Some(u), Some(p)) => (u.trim().to_string(), p.trim().to_string()),
+        (Some(u), None) => {
+            let p = match rpassword::prompt_password("  password: ") {
+                Ok(p) => p.trim().to_string(),
+                Err(_) => {
+                    println!("\nCancelled.");
+                    return 1;
+                }
+            };
+            (u.trim().to_string(), p)
         }
-        let u = u.trim().to_string();
-
-        let p = match rpassword::prompt_password("  password: ") {
-            Ok(p) => p.trim().to_string(),
-            Err(_) => {
+        _ => {
+            println!("{}", color(BOLD, "Enter login credentials:"));
+            print!("  username: ");
+            let _ = io::stdout().flush();
+            let mut u = String::new();
+            if io::stdin().read_line(&mut u).is_err() {
                 println!("\nCancelled.");
                 return 1;
             }
-        };
-        (u, p)
+            let u = u.trim().to_string();
+
+            let p = match rpassword::prompt_password("  password: ") {
+                Ok(p) => p.trim().to_string(),
+                Err(_) => {
+                    println!("\nCancelled.");
+                    return 1;
+                }
+            };
+            (u, p)
+        }
     };
 
     if username.is_empty() {
@@ -242,18 +254,19 @@ fn cmd_add(args: &[String]) -> i32 {
     0
 }
 
-fn cmd_del(args: &[String]) -> i32 {
-    let username = if !args.is_empty() {
-        args[0].trim().to_string()
-    } else {
-        print!("Enter username to delete: ");
-        let _ = io::stdout().flush();
-        let mut u = String::new();
-        if io::stdin().read_line(&mut u).is_err() {
-            println!("\nCancelled.");
-            return 1;
+fn cmd_del(user_opt: Option<&str>) -> i32 {
+    let username = match user_opt {
+        Some(u) => u.trim().to_string(),
+        None => {
+            print!("Enter username to delete: ");
+            let _ = io::stdout().flush();
+            let mut u = String::new();
+            if io::stdin().read_line(&mut u).is_err() {
+                println!("\nCancelled.");
+                return 1;
+            }
+            u.trim().to_string()
         }
-        u.trim().to_string()
     };
 
     if username.is_empty() {
@@ -287,43 +300,44 @@ fn cmd_del(args: &[String]) -> i32 {
     0
 }
 
-fn cmd_select(args: &[String]) -> i32 {
+fn cmd_select(user_opt: Option<&str>) -> i32 {
     let mut cfg = config::load_config();
     if cfg.accounts.is_empty() {
         print_err("No saved accounts. Run 'pesu-wifi add' first.");
         return 1;
     }
 
-    let username = if !args.is_empty() {
-        args[0].trim().to_string()
-    } else {
-        println!("{}", color(BOLD, "Select default account:"));
-        let users: Vec<String> = cfg.accounts.keys().cloned().collect();
-        for (i, u) in users.iter().enumerate() {
-            let marker = if Some(u) == cfg.active_user.as_ref() {
-                color(CYAN, " [active]")
-            } else {
-                String::new()
-            };
-            println!("  {} {}{}", color(DIM, &format!("{}.", i + 1)), u, marker);
-        }
+    let username = match user_opt {
+        Some(u) => u.trim().to_string(),
+        None => {
+            println!("{}", color(BOLD, "Select default account:"));
+            let users: Vec<String> = cfg.accounts.keys().cloned().collect();
+            for (i, u) in users.iter().enumerate() {
+                let marker = if Some(u) == cfg.active_user.as_ref() {
+                    color(CYAN, " [active]")
+                } else {
+                    String::new()
+                };
+                println!("  {} {}{}", color(DIM, &format!("{}.", i + 1)), u, marker);
+            }
 
-        print!("  Enter number or username: ");
-        let _ = io::stdout().flush();
-        let mut choice = String::new();
-        if io::stdin().read_line(&mut choice).is_err() {
-            println!("\nCancelled.");
-            return 1;
-        }
-        let choice = choice.trim();
-        if let Ok(idx) = choice.parse::<usize>() {
-            if idx >= 1 && idx <= users.len() {
-                users[idx - 1].clone()
+            print!("  Enter number or username: ");
+            let _ = io::stdout().flush();
+            let mut choice = String::new();
+            if io::stdin().read_line(&mut choice).is_err() {
+                println!("\nCancelled.");
+                return 1;
+            }
+            let choice = choice.trim();
+            if let Ok(idx) = choice.parse::<usize>() {
+                if idx >= 1 && idx <= users.len() {
+                    users[idx - 1].clone()
+                } else {
+                    choice.to_string()
+                }
             } else {
                 choice.to_string()
             }
-        } else {
-            choice.to_string()
         }
     };
 
@@ -378,126 +392,136 @@ fn cmd_list(show_passwords: bool) -> i32 {
     0
 }
 
-fn print_help() {
-    let banner = format!(
-        r#"{name} {ver}
-{desc}
+#[derive(Parser, Debug)]
+#[command(
+    name = "pesu-wifi",
+    version = VERSION,
+    about = "Automated captive portal login & keepalive watchdog for PES University.",
+    disable_version_flag = true,
+    disable_help_subcommand = true
+)]
+struct Cli {
+    /// Print version information
+    #[arg(short = 'v', long = "version", action = clap::ArgAction::Version)]
+    version: Option<bool>,
 
-{bold_usage}
-  pesu-wifi [OPTIONS] <COMMAND>
+    /// List saved accounts showing passwords
+    #[arg(short = 'p', long = "passwords")]
+    passwords: bool,
 
-{bold_commands}
-  {c_status} Show live connection status card
-  {c_start} Start keepalive watchdog daemon (-f to run in foreground)
-  {c_stop} Stop background keepalive watchdog daemon
-  {c_login} Smart login; optionally with a specific account
-  {c_logout} Sign out cleanly from captive portal
-  {c_select} Set default active account (alias: use)
-  {c_add} Save or update login credentials
-  {c_del} Remove a saved account
-  {c_list} List saved accounts (-p to show passwords)
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
 
-{bold_options}
-  {c_help} Print help information
-  {c_version} Print version information
-  {c_passwords} List saved accounts with passwords
-"#,
-        name = color(&format!("{}{}", BOLD, CYAN), "PESU WiFi Manager"),
-        ver = color(DIM, &format!("v{}", VERSION)),
-        desc = color(
-            DIM,
-            "Automated captive portal login & keepalive watchdog for PES University."
-        ),
-        bold_usage = color(BOLD, "Usage:"),
-        bold_commands = color(BOLD, "Commands:"),
-        bold_options = color(BOLD, "Options:"),
-        c_status = color(GREEN, &format!("{:<26}", "status")),
-        c_start = color(GREEN, &format!("{:<26}", "start [-f, --foreground]")),
-        c_stop = color(GREEN, &format!("{:<26}", "stop")),
-        c_login = color(GREEN, &format!("{:<26}", "login [username]")),
-        c_logout = color(GREEN, &format!("{:<26}", "logout")),
-        c_select = color(GREEN, &format!("{:<26}", "select [username]")),
-        c_add = color(GREEN, &format!("{:<26}", "add")),
-        c_del = color(GREEN, &format!("{:<26}", "del [username]")),
-        c_list = color(GREEN, &format!("{:<26}", "list [-p, --passwords]")),
-        c_help = color(GREEN, &format!("{:<26}", "-h, --help")),
-        c_version = color(GREEN, &format!("{:<26}", "-v, --version")),
-        c_passwords = color(GREEN, &format!("{:<26}", "-p, --passwords")),
-    );
-    print!("{}", banner);
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Show live connection status card
+    Status,
+
+    /// Start keepalive watchdog daemon (-f to run in foreground)
+    Start {
+        /// Run watchdog loop in foreground
+        #[arg(short = 'f', long = "foreground")]
+        foreground: bool,
+    },
+
+    /// Stop background keepalive watchdog daemon
+    Stop,
+
+    /// Smart login; optionally with a specific account
+    Login {
+        /// Account username to log in with
+        username: Option<String>,
+    },
+
+    /// Sign out cleanly from captive portal
+    Logout,
+
+    /// Set default active account (alias: use)
+    #[command(alias = "use")]
+    Select {
+        /// Account username to select
+        username: Option<String>,
+    },
+
+    /// Save or update login credentials
+    Add {
+        /// Optional username
+        username: Option<String>,
+        /// Optional password
+        password: Option<String>,
+    },
+
+    /// Remove a saved account
+    Del {
+        /// Username to delete
+        username: Option<String>,
+    },
+
+    /// List saved accounts (-p to show passwords)
+    List {
+        /// Show passwords
+        #[arg(short = 'p', long = "passwords")]
+        passwords: bool,
+    },
+
+    /// Fast-path helper to list saved accounts for shell completions
+    #[command(hide = true, name = "__list-accounts")]
+    ListAccounts,
+
+    /// Hidden alias for systemd service backwards-compatibility
+    #[command(hide = true)]
+    Daemon,
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("pesu-wifi: no command provided");
-        eprintln!("Try 'pesu-wifi --help' for more information.");
-        std::process::exit(2);
+    let cli = Cli::parse();
+
+    if cli.passwords && cli.command.is_none() {
+        std::process::exit(cmd_list(true));
     }
 
-    let cmd = args[1].to_lowercase();
-    let cmd_args = &args[2..];
-
-    if cmd_args.iter().any(|a| a == "-h" || a == "--help") {
-        print_help();
-        std::process::exit(0);
-    }
-
-    match cmd.as_str() {
-        "-h" | "--help" => {
-            print_help();
-            std::process::exit(0);
-        }
-        "-v" | "--version" => {
-            println!("pesu-wifi v{}", VERSION);
-            std::process::exit(0);
-        }
-        "-p" | "--passwords" => {
-            std::process::exit(cmd_list(true));
-        }
-        "status" => {
+    match cli.command {
+        Some(Commands::Status) => {
             cmd_status();
             std::process::exit(0);
         }
-        "start" => {
-            let fg = cmd_args.iter().any(|a| a == "-f" || a == "--foreground");
-            std::process::exit(daemon::cmd_start(fg));
+        Some(Commands::Start { foreground }) => {
+            std::process::exit(daemon::cmd_start(foreground));
         }
-        "stop" => {
+        Some(Commands::Stop) => {
             std::process::exit(daemon::cmd_stop());
         }
-        "login" => {
-            let target = cmd_args.first().map(|s| s.as_str());
-            std::process::exit(cmd_login(target));
+        Some(Commands::Login { username }) => {
+            std::process::exit(cmd_login(username.as_deref()));
         }
-        "logout" => {
+        Some(Commands::Logout) => {
             std::process::exit(cmd_logout());
         }
-        "select" | "use" => {
-            std::process::exit(cmd_select(cmd_args));
+        Some(Commands::Select { username }) => {
+            std::process::exit(cmd_select(username.as_deref()));
         }
-        "add" => {
-            std::process::exit(cmd_add(cmd_args));
+        Some(Commands::Add { username, password }) => {
+            std::process::exit(cmd_add(username.as_deref(), password.as_deref()));
         }
-        "del" => {
-            std::process::exit(cmd_del(cmd_args));
+        Some(Commands::Del { username }) => {
+            std::process::exit(cmd_del(username.as_deref()));
         }
-        "list" => {
-            let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords");
-            std::process::exit(cmd_list(show_pw));
+        Some(Commands::List { passwords }) => {
+            std::process::exit(cmd_list(passwords));
         }
-        "__list-accounts" => {
+        Some(Commands::ListAccounts) => {
             let cfg = config::load_config();
             for user in cfg.accounts.keys() {
                 println!("{}", user);
             }
             std::process::exit(0);
         }
-        "daemon" => {
+        Some(Commands::Daemon) => {
             daemon::run_daemon();
         }
-        _ => {
-            eprintln!("pesu-wifi: unrecognized command '{}'", cmd);
+        None => {
+            eprintln!("pesu-wifi: no command provided");
             eprintln!("Try 'pesu-wifi --help' for more information.");
             std::process::exit(2);
         }
