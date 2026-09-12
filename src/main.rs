@@ -378,124 +378,28 @@ fn cmd_list(show_passwords: bool) -> i32 {
     0
 }
 
-fn cmd_wifi(args: &[String]) -> i32 {
-    let target_ssid = if !args.is_empty() {
-        args.join(" ")
-    } else {
-        print_info("Scanning available Wi-Fi networks...");
-        let list = wifi::scan_wifi_networks();
-        if list.is_empty() {
-            print_err("No Wi-Fi networks found.");
-            return 1;
-        }
-
-        println!("{}", color(&format!("{}{}", BOLD, CYAN), "\nAvailable Wi-Fi Networks:"));
-        for (i, w) in list.iter().enumerate() {
-            let mut flags = Vec::new();
-            if w.in_use {
-                flags.push(color(GREEN, "[connected]"));
-            }
-            if w.saved {
-                flags.push(color(DIM, "[saved]"));
-            }
-            let flag_str = if !flags.is_empty() {
-                format!(" {}", flags.join(" "))
-            } else {
-                String::new()
-            };
-            let sig_str = if !w.bars.is_empty() {
-                format!("{}% {}", w.signal, w.bars)
-            } else {
-                format!("{}%", w.signal)
-            };
-            let sec_str = if !w.security.is_empty() {
-                format!("[{}]", w.security)
-            } else {
-                String::new()
-            };
-
-            println!(
-                "  {} {}{}  {} {}",
-                color(DIM, &format!("{}.", i + 1)),
-                color(BOLD, &w.ssid),
-                flag_str,
-                color(DIM, &sig_str),
-                sec_str
-            );
-        }
-        println!();
-
-        print!("  Enter number or SSID to connect: ");
-        let _ = io::stdout().flush();
-        let mut choice = String::new();
-        if io::stdin().read_line(&mut choice).is_err() {
-            println!("\nCancelled.");
-            return 0;
-        }
-        let choice = choice.trim();
-        if choice.is_empty() {
-            println!("Cancelled.");
-            return 0;
-        }
-
-        if let Ok(idx) = choice.parse::<usize>() {
-            if idx >= 1 && idx <= list.len() {
-                list[idx - 1].ssid.clone()
-            } else {
-                choice.to_string()
-            }
-        } else {
-            choice.to_string()
-        }
-    };
-
-    print_info(&format!("Connecting to Wi-Fi '{}'...", target_ssid));
-    match wifi::connect_wifi(&target_ssid) {
-        Ok(_) => {
-            print_ok(&format!("Connected to '{}'.", target_ssid));
-            0
-        }
-        Err(e) => {
-            print_err(&format!("Failed to connect to '{}': {}", target_ssid, e));
-            1
-        }
-    }
-}
-
 fn print_help() {
     let banner = format!(
         r#"{name} {ver}
 {desc}
 
 {bold_usage}
-  pesu-wifi <command> [arguments]
+  pesu-wifi [OPTIONS] <COMMAND>
 
 {bold_commands}
-  {c_status:<22} Show live connection status card
-  {c_start:<22} Start background keepalive daemon (systemd)
-  {c_stop:<22} Stop background keepalive daemon
-  {c_restart:<22} Restart background keepalive daemon
-  {c_login:<22} Smart login; optionally with a specific account
-  {c_logout:<22} Sign out cleanly
-  {c_select:<22} Set default account (alias: use)
-  {c_wifi:<22} Select & connect to a Wi-Fi network
-  {c_add:<22} Save or update login credentials
-  {c_del:<22} Remove a saved account
-  {c_list:<22} List saved accounts; -p to show passwords
-  {c_daemon:<22} Run keepalive watchdog in foreground ({interval}s polling)
-  {c_version:<22} Show version information
-  {c_help:<22} Show this message
+  {c_status} Show live connection status card
+  {c_start} Start keepalive watchdog daemon (-f to run in foreground)
+  {c_stop} Stop background keepalive watchdog daemon
+  {c_login} Smart login; optionally with a specific account
+  {c_logout} Sign out cleanly from captive portal
+  {c_select} Set default active account (alias: use)
+  {c_add} Save or update login credentials
+  {c_del} Remove a saved account
+  {c_list} List saved accounts (-p to show passwords)
 
-{bold_examples}
-  pesu-wifi status                  # View live connection overview
-  pesu-wifi start                   # Start background watchdog daemon
-  pesu-wifi stop                    # Stop background watchdog daemon
-  pesu-wifi wifi                    # Interactive Wi-Fi network picker
-  pesu-wifi wifi PESU-EC-Campus     # Connect directly to SSID
-  pesu-wifi login                   # Login with active account
-  pesu-wifi login student1          # Login with a specific account
-  pesu-wifi select student1         # Switch active account
-  pesu-wifi list -p                 # Show all accounts & passwords
+{bold_options}
+  {c_help} Print help information
+  {c_version} Print version information
 "#,
         name = color(&format!("{}{}", BOLD, CYAN), "PESU WiFi Manager"),
         ver = color(DIM, &format!("v{}", VERSION)),
@@ -503,24 +407,20 @@ fn print_help() {
             DIM,
             "Automated captive portal login & keepalive watchdog for PES University."
         ),
-        bold_usage = color(BOLD, "USAGE:"),
-        bold_commands = color(BOLD, "COMMANDS:"),
-        bold_examples = color(BOLD, "EXAMPLES:"),
-        interval = daemon::KEEP_ALIVE_INTERVAL,
-        c_status = color(GREEN, "status"),
-        c_start = color(GREEN, "start"),
-        c_stop = color(GREEN, "stop"),
-        c_restart = color(GREEN, "restart"),
-        c_login = color(GREEN, "login [username]"),
-        c_logout = color(GREEN, "logout"),
-        c_select = color(GREEN, "select [username]"),
-        c_wifi = color(GREEN, "wifi [ssid]"),
-        c_add = color(GREEN, "add"),
-        c_del = color(GREEN, "del [username]"),
-        c_list = color(GREEN, "list [-p]"),
-        c_daemon = color(GREEN, "daemon"),
-        c_version = color(GREEN, "version"),
-        c_help = color(GREEN, "help"),
+        bold_usage = color(BOLD, "Usage:"),
+        bold_commands = color(BOLD, "Commands:"),
+        bold_options = color(BOLD, "Options:"),
+        c_status = color(GREEN, &format!("{:<26}", "status")),
+        c_start = color(GREEN, &format!("{:<26}", "start [-f, --foreground]")),
+        c_stop = color(GREEN, &format!("{:<26}", "stop")),
+        c_login = color(GREEN, &format!("{:<26}", "login [username]")),
+        c_logout = color(GREEN, &format!("{:<26}", "logout")),
+        c_select = color(GREEN, &format!("{:<26}", "select [username]")),
+        c_add = color(GREEN, &format!("{:<26}", "add")),
+        c_del = color(GREEN, &format!("{:<26}", "del [username]")),
+        c_list = color(GREEN, &format!("{:<26}", "list [-p, --passwords]")),
+        c_help = color(GREEN, &format!("{:<26}", "-h, --help")),
+        c_version = color(GREEN, &format!("{:<26}", "-v, --version")),
     );
     print!("{}", banner);
 }
@@ -528,12 +428,18 @@ fn print_help() {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        print_help();
-        std::process::exit(0);
+        eprintln!("pesu-wifi: no command provided");
+        eprintln!("Try 'pesu-wifi --help' for more information.");
+        std::process::exit(2);
     }
 
     let cmd = args[1].to_lowercase();
     let cmd_args = &args[2..];
+
+    if cmd_args.iter().any(|a| a == "-h" || a == "--help") {
+        print_help();
+        std::process::exit(0);
+    }
 
     match cmd.as_str() {
         "-h" | "--help" | "help" => {
@@ -549,13 +455,11 @@ fn main() {
             std::process::exit(0);
         }
         "start" => {
-            std::process::exit(daemon::cmd_start());
+            let fg = cmd_args.iter().any(|a| a == "-f" || a == "--foreground");
+            std::process::exit(daemon::cmd_start(fg));
         }
         "stop" => {
             std::process::exit(daemon::cmd_stop());
-        }
-        "restart" => {
-            std::process::exit(daemon::cmd_restart());
         }
         "login" => {
             let target = cmd_args.first().map(|s| s.as_str());
@@ -566,9 +470,6 @@ fn main() {
         }
         "select" | "use" => {
             std::process::exit(cmd_select(cmd_args));
-        }
-        "wifi" | "select-wifi" | "connect" => {
-            std::process::exit(cmd_wifi(cmd_args));
         }
         "add" => {
             std::process::exit(cmd_add(cmd_args));
@@ -591,9 +492,9 @@ fn main() {
             daemon::run_daemon();
         }
         _ => {
-            print_err(&format!("Unknown command '{}'.", cmd));
-            print_help();
-            std::process::exit(1);
+            eprintln!("pesu-wifi: unrecognized command '{}'", cmd);
+            eprintln!("Try 'pesu-wifi --help' for more information.");
+            std::process::exit(2);
         }
     }
 }

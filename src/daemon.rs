@@ -214,12 +214,16 @@ pub fn run_daemon() -> ! {
     }
 }
 
-pub fn cmd_start() -> i32 {
+pub fn cmd_start(foreground: bool) -> i32 {
     let (username, password) = config::get_active_credentials();
     if username.is_none() || password.is_none() {
         print_err("No credentials configured.");
         println!("{}", color(YELLOW, "  Run 'pesu-wifi add' first to save credentials."));
         return 1;
+    }
+
+    if foreground {
+        run_daemon();
     }
 
     let (daemon_active, daemon_pid) = is_daemon_running();
@@ -294,9 +298,4 @@ pub fn cmd_stop() -> i32 {
         print_warn("Daemon process may still be stopping.");
     }
     0
-}
-
-pub fn cmd_restart() -> i32 {
-    cmd_stop();
-    cmd_start()
 }

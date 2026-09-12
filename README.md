@@ -24,7 +24,6 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 - **Campus SSID Auto-Standby:** Automatically detects whether you are connected to a campus network. Gracefully pauses watchdog activities when at home or on non-campus Wi-Fi.
 - **Desktop Notifications:** Dispatches native system notifications (`notify-send`) on login, session renewal, and authentication errors.
 - **Sub-Second Status Detection:** Probes the local gateway in 10–30ms to detect session states without redundant network traffic.
-- **Interactive Wi-Fi Selector:** Built-in scanner scans available nearby access points, reports signal strength and security types, and connects directly via NetworkManager.
 - **Multi-Account Switching:** Save multiple student accounts, switch the active user instantly, or explicitly log in under a specific account.
 - **Secure Atomic Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-wifi/.env` with strict `0600` permissions.
 - **Resilient Multi-Tier Self-Healing:**
@@ -76,14 +75,8 @@ Credentials are saved in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-w
 
 ### Connection & Status
 ```bash
-# View live connection card (gateway, SSID, session state, active user, daemon PID)
+# View live connection status overview card
 pesu-wifi status
-
-# Interactive Wi-Fi network scanner and picker
-pesu-wifi wifi
-
-# Connect directly to a specific Wi-Fi SSID
-pesu-wifi wifi PESU-EC-Campus
 ```
 
 ### Authentication & Sessions
@@ -115,6 +108,7 @@ pesu-wifi list
 
 # List saved accounts showing stored passwords
 pesu-wifi list -p
+pesu-wifi list --passwords
 
 # Delete an account
 pesu-wifi del student1
@@ -125,14 +119,12 @@ pesu-wifi del student1
 # Start background watchdog daemon via systemd user service
 pesu-wifi start
 
+# Run watchdog in the foreground (useful for debugging or containers)
+pesu-wifi start -f
+pesu-wifi start --foreground
+
 # Stop background watchdog daemon
 pesu-wifi stop
-
-# Restart background watchdog daemon
-pesu-wifi restart
-
-# Run watchdog in the foreground (useful for debugging or containers)
-pesu-wifi daemon
 ```
 
 ---
