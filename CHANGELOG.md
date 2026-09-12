@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.0.3 — Top-Level Password Flags & Enhanced CLI Flag Support](#v303--top-level-password-flags--enhanced-cli-flag-support)
+  - [Overview & Major Highlights](#v303-overview--major-highlights)
 - [v3.0.2 — Standardized CLI Options, Unified Daemon Controls & Clean Output](#v302--standardized-cli-options-unified-daemon-controls--clean-output)
   - [Overview & Major Highlights](#v302-overview--major-highlights)
 - [v3.0.1 — Build Stability, Non-POSIX Filesystem Support & Zero-Python Completions](#v301--build-stability-non-posix-filesystem-support--zero-python-completions)
@@ -21,6 +23,18 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
 - [v2.0.0 — Initial Release](#v200--initial-release)
 - [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.0.3 — Top-Level Password Flags & Enhanced CLI Flag Support
+
+**Release Date:** September 12, 2026  
+**Git Tag:** [`v3.0.3`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.3)  
+
+### v3.0.3 Overview & Major Highlights
+- **Top-Level `-p` / `--passwords` Support:** Directly running `pesu-wifi -p` or `pesu-wifi --passwords` now immediately lists saved accounts along with their credentials, matching user expectations for top-level options.
+- **Top-Level Shell Completions:** Updated Bash, Fish, and Zsh completion definitions so `-p` and `--passwords` auto-complete seamlessly at the root command level.
+- **Lenient Flag Handling:** Added support for single-dash `-version`, `-help`, and `-passwords` to ensure smooth compatibility regardless of terminal flag habit.
 
 ---
 

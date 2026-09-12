@@ -9,6 +9,7 @@ end
 complete -c pesu-wifi -f
 complete -c pesu-wifi -s h -l help -d "Print help information"
 complete -c pesu-wifi -s v -l version -d "Print version information"
+complete -c pesu-wifi -s p -l passwords -d "List saved accounts showing passwords"
 
 complete -c pesu-wifi -n "__fish_use_subcommand" -a status -d "Show live connection status card"
 complete -c pesu-wifi -n "__fish_use_subcommand" -a start -d "Start keepalive watchdog daemon"
