@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.0.2 — Standardized CLI Options, Unified Daemon Controls & Clean Output](#v302--standardized-cli-options-unified-daemon-controls--clean-output)
+  - [Overview & Major Highlights](#v302-overview--major-highlights)
 - [v3.0.1 — Build Stability, Non-POSIX Filesystem Support & Zero-Python Completions](#v301--build-stability-non-posix-filesystem-support--zero-python-completions)
   - [Overview & Major Highlights](#v301-overview--major-highlights)
 - [v3.0.0 — Native Rust Rewrite, Blazing Speed & Zero Runtime Dependencies](#v300--native-rust-rewrite-blazing-speed--zero-runtime-dependencies)
@@ -19,6 +21,20 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
 - [v2.0.0 — Initial Release](#v200--initial-release)
 - [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.0.2 — Standardized CLI Options, Unified Daemon Controls & Clean Output
+
+**Release Date:** September 12, 2026  
+**Git Tag:** [`v3.0.2`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.2)  
+
+### v3.0.2 Overview & Major Highlights
+- **Standardized CLI Flags & Error Handling:** Implemented standard POSIX-style `-v, --version`, `-h, --help`, and `-p, --passwords` options across commands. Running `pesu-wifi` without arguments or with unrecognized commands now follows standard Unix conventions, outputting a concise error message with an exit code of `2` and prompting to run `--help`, rather than printing full help text.
+- **Unified Daemon Controls (`start [-f, --foreground]`):** Resolved command redundancy between `start` and `daemon`. Running `pesu-wifi start` now natively manages the background `systemd --user` watchdog service, while `pesu-wifi start -f` (or `--foreground`) runs the watchdog loop directly in the active terminal session. Deprecated and removed the redundant `restart` command in favor of standard service restarts.
+- **Removed Redundant `wifi` Command:** Pruned the unused `wifi` interactive command, retaining core captive portal login/keepalive logic and automated NetworkManager self-healing.
+- **Streamlined Help & Perfect Column Alignment:** Removed the verbose `EXAMPLES` section from help output and refined visual string length calculations to ensure ANSI-colored command names and descriptions align in columns.
+- **Updated Shell Completions:** Updated Bash, Fish, and Zsh completion scripts to support all new flags (`-f`, `--foreground`, `-p`, `--passwords`, `-h`, `--help`, `-v`, `--version`) and removed completed entries for pruned subcommands.
 
 ---
 

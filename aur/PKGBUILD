@@ -1,7 +1,7 @@
 # Maintainer: imyash0722 <imyash0722@users.noreply.github.com>
 pkgname=pesu-wifi-git
 _pkgname=pesu-wifi
-pkgver=3.0.1.r0.g1472512
+pkgver=3.0.2
 pkgrel=1
 pkgdesc="High-performance native Rust captive portal login manager and keepalive watchdog daemon for PES University WiFi"
 arch=('x86_64' 'aarch64' 'armv7h')

@@ -4,10 +4,15 @@ _pesu_wifi_completions() {
     local cur prev commands
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="status start stop restart login logout select use wifi add del list daemon version help"
+    commands="status start stop login logout select use add del list"
+    opts="-h --help -v --version"
 
     if [[ ${COMP_CWORD} -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "${commands}" -- "${cur}") )
+        if [[ "${cur}" == -* ]]; then
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+        else
+            COMPREPLY=( $(compgen -W "${commands} ${opts}" -- "${cur}") )
+        fi
         return 0
     fi
 
@@ -20,16 +25,12 @@ _pesu_wifi_completions() {
             COMPREPLY=( $(compgen -W "${accounts}" -- "${cur}") )
             return 0
             ;;
-        wifi)
-            local ssids=""
-            if command -v nmcli &>/dev/null; then
-                ssids=$(nmcli -t -f SSID dev wifi list 2>/dev/null | grep -v '^$' | sort -u)
-            fi
-            COMPREPLY=( $(compgen -W "${ssids}" -- "${cur}") )
+        list)
+            COMPREPLY=( $(compgen -W "-p --passwords -h --help" -- "${cur}") )
             return 0
             ;;
-        list)
-            COMPREPLY=( $(compgen -W "-p --passwords" -- "${cur}") )
+        start)
+            COMPREPLY=( $(compgen -W "-f --foreground -h --help" -- "${cur}") )
             return 0
             ;;
     esac
