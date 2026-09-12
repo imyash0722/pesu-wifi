@@ -183,9 +183,8 @@ pesu-wifi/
 
 ## Release History & Changelog
 
-See [**CHANGELOG.md**](CHANGELOG.md) for full commit-by-commit technical breakdowns, architectural notes, and upgrade guides for every release.
-
-- [**v3.0.0**](CHANGELOG.md#v300--native-rust-rewrite-blazing-speed--zero-runtime-dependencies) — Complete native Rust rewrite with sub-millisecond cold starts, ~3MB resident daemon memory, zero Python runtime dependencies, and standalone binary distribution.
+- [**v3.0.1**](CHANGELOG.md#v301--build-stability-non-posix-filesystem-support--zero-python-completions) — Build stability on external/exFAT mounts, zero-Python completions, daemon path hardening, and test suite expansion.
+- [**v3.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.0) — Complete native Rust rewrite with sub-millisecond cold starts, ~3MB resident daemon memory, zero Python runtime dependencies, and standalone binary distribution.
 - [**v2.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0) — Process controls (`start`/`stop`/`restart`), campus SSID auto-standby, desktop notifications, atomic umask hardening, anti-storm jitter protection, and multi-packaging CI.
 - [**v2.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.2.0) — Interactive Wi-Fi selector, sub-second gateway detection, multi-account credentials management, and verification suite.
 - [**v2.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.0.0) — Initial rewritten Python CLI release with automated Cyberoam login & keepalive.

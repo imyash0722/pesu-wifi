@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.0.1 — Build Stability, Non-POSIX Filesystem Support & Zero-Python Completions](#v301--build-stability-non-posix-filesystem-support--zero-python-completions)
+  - [Overview & Major Highlights](#v301-overview--major-highlights)
 - [v3.0.0 — Native Rust Rewrite, Blazing Speed & Zero Runtime Dependencies](#v300--native-rust-rewrite-blazing-speed--zero-runtime-dependencies)
   - [Overview & Major Highlights](#v300-overview--major-highlights)
   - [Performance Benchmarks](#v300-performance-benchmarks)
@@ -17,6 +19,21 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
 - [v2.0.0 — Initial Release](#v200--initial-release)
 - [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.0.1 — Build Stability, Non-POSIX Filesystem Support & Zero-Python Completions
+
+**Release Date:** September 12, 2026  
+**Git Tag:** [`v3.0.1`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.1)  
+
+### v3.0.1 Overview & Major Highlights
+- **Resilient Non-POSIX Filesystem Builds:** Automated filesystem type inspection in `install.sh` detects external and non-POSIX partitions (`exfat`, `vfat`, `ntfs`, `cifs`) and automatically redirects `CARGO_TARGET_DIR` to native storage (`~/.cache/cargo-target/pesu-wifi`), preventing `rustc` metadata corruption (`E0786`) and compiler panics.
+- **Native Zero-Python Shell Completions:** Added internal `__list-accounts` fast-path helper to `pesu-wifi`, allowing Bash, Zsh, and Fish completion scripts to query saved accounts in <2ms with zero Python dependencies.
+- **Installer Safety & Daemon Path Hardening:** `install.sh` now cleanly unlinks existing destination binaries and dangling symlinks before copying, preventing `ETXTBSY` ("Text file busy") errors when updating active daemons, and guarantees the user systemd service points to the user-installed binary.
+- **Arch Linux Packaging Compliance:** Added `options=(!lto)` to `PKGBUILD` to prevent toolchain linker incompatibilities during makepkg package creation.
+- **Expanded Offline Test Suite:** Added unit tests verifying POSIX `0600` file permission masks, `0700` configuration directory creation, ANSI visual string length calculation for Unicode box-drawing, and campus SSID validation.
+- **Legacy Cleanup:** Purged all legacy Python systemd user units, wake triggers, and sleep hooks across the local system.
 
 ---
 
