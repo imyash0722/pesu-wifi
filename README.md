@@ -37,7 +37,20 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 
 ## Installation & Building
 
-### From Source (Requires Cargo / Rust)
+### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
+
+```bash
+curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.1.0/pesu-wifi-v3.1.0-linux-x86_64.tar.gz | tar -xz
+cd pesu-wifi-v3.1.0-linux-x86_64 && ./install.sh
+```
+
+### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
+
+```bash
+sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.1.0/pesu-wifi-3.1.0-x86_64.pkg.tar.zst
+```
+
+### Option C: Build from Source (Requires Cargo / Rust)
 
 ```bash
 # Clone the repository
@@ -72,6 +85,24 @@ Credentials are saved in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-w
 ---
 
 ## CLI Command Reference
+
+### Options & Top-Level Flags
+```bash
+# Display help information (-h, --help)
+pesu-wifi -h
+pesu-wifi --help
+
+# Print version information (-v, --version)
+pesu-wifi -v
+pesu-wifi --version
+
+# List all saved accounts and stored passwords directly (-p, --passwords)
+pesu-wifi -p
+pesu-wifi --passwords
+
+# Subcommands also support contextual help
+pesu-wifi <subcommand> --help
+```
 
 ### Connection & Status
 ```bash
@@ -145,10 +176,10 @@ pesu-wifi stop
 
 ```text
 pesu-wifi/
-├── Cargo.toml               # Rust package & dependency definitions
+├── Cargo.toml               # Rust package & clap dependency definitions
 ├── Cargo.lock               # Cargo dependency lockfile
 ├── src/
-│   ├── main.rs              # CLI entry point, argument parsing & command routing
+│   ├── main.rs              # CLI entry point, clap derive parser & command routing
 │   ├── portal.rs            # Cyberoam HTTP portal client & XML parser
 │   ├── config.rs            # Multi-account configuration & credentials store
 │   ├── wifi.rs              # NetworkManager & interface recovery controller
@@ -175,7 +206,11 @@ pesu-wifi/
 
 ## Release History & Changelog
 
-- [**v3.0.1**](CHANGELOG.md#v301--build-stability-non-posix-filesystem-support--zero-python-completions) — Build stability on external/exFAT mounts, zero-Python completions, daemon path hardening, and test suite expansion.
+- [**v3.1.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.1.0) ([Notes](CHANGELOG.md#v310--clap-derive-migration--production-cli-architecture)) — Full migration to `clap` derive parser, automatic multi-level help screens, contextual typo suggestions, and strict POSIX flag validation.
+- [**v3.0.4**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.4) ([Notes](CHANGELOG.md#v304--strict-standard-posix-flags--clean-syntax-enforcement)) — Strict POSIX/GNU options enforcement (`-v`, `--version`, `-h`, `--help`), pruned informal command aliases, and standard exit code `2`.
+- [**v3.0.3**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.3) ([Notes](CHANGELOG.md#v303--top-level-password-flags--enhanced-cli-flag-support)) — Top-level `-p` / `--passwords` flag support and root-level shell completions.
+- [**v3.0.2**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.2) ([Notes](CHANGELOG.md#v302--standardized-cli-options-unified-daemon-controls--clean-output)) — Standardized CLI options, unified foreground/background daemon controls (`start [-f, --foreground]`), and pruned redundant commands.
+- [**v3.0.1**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.1) ([Notes](CHANGELOG.md#v301--build-stability-non-posix-filesystem-support--zero-python-completions)) — Build stability on external/exFAT mounts, zero-Python completions, daemon path hardening, and test suite expansion.
 - [**v3.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.0) — Complete native Rust rewrite with sub-millisecond cold starts, ~3MB resident daemon memory, zero Python runtime dependencies, and standalone binary distribution.
 - [**v2.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0) — Process controls (`start`/`stop`/`restart`), campus SSID auto-standby, desktop notifications, atomic umask hardening, anti-storm jitter protection, and multi-packaging CI.
 - [**v2.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.2.0) — Interactive Wi-Fi selector, sub-second gateway detection, multi-account credentials management, and verification suite.
