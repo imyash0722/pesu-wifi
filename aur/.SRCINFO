@@ -1,6 +1,6 @@
 pkgbase = pesu-wifi-git
 	pkgdesc = High-performance native Rust captive portal login manager and keepalive watchdog daemon for PES University WiFi
-	pkgver = 3.0.3
+	pkgver = 3.0.4
 	pkgrel = 1
 	url = https://github.com/imyash0722/pesu-wifi
 	install = pesu-wifi.install

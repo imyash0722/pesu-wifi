@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.0.4 — Strict Standard POSIX Flags & Clean Syntax Enforcement](#v304--strict-standard-posix-flags--clean-syntax-enforcement)
+  - [Overview & Major Highlights](#v304-overview--major-highlights)
 - [v3.0.3 — Top-Level Password Flags & Enhanced CLI Flag Support](#v303--top-level-password-flags--enhanced-cli-flag-support)
   - [Overview & Major Highlights](#v303-overview--major-highlights)
 - [v3.0.2 — Standardized CLI Options, Unified Daemon Controls & Clean Output](#v302--standardized-cli-options-unified-daemon-controls--clean-output)
@@ -23,6 +25,20 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
 - [v2.0.0 — Initial Release](#v200--initial-release)
 - [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.0.4 — Strict Standard POSIX Flags & Clean Syntax Enforcement
+
+**Release Date:** September 12, 2026  
+**Git Tag:** [`v3.0.4`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.4)  
+
+### v3.0.4 Overview & Major Highlights
+- **Strict POSIX/GNU Options Enforcement:** Enforced standard command-line syntax:
+  - Version: strictly `-v` or `--version` (pruned informal `version` and `-version`).
+  - Help: strictly `-h` or `--help` (pruned informal `help` and `-help`).
+  - Passwords: `-p` or `--passwords`.
+- **Consistent Error Reporting:** Unrecognized or non-standard invocations like `pesu-wifi version` or `pesu-wifi help` output standard error hints (`Try 'pesu-wifi --help' for more information.`) and exit code `2`.
 
 ---
 

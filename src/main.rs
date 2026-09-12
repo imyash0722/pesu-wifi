@@ -438,24 +438,24 @@ fn main() {
     let cmd = args[1].to_lowercase();
     let cmd_args = &args[2..];
 
-    if cmd_args.iter().any(|a| a == "-h" || a == "--help" || a == "-help") {
+    if cmd_args.iter().any(|a| a == "-h" || a == "--help") {
         print_help();
         std::process::exit(0);
     }
 
     match cmd.as_str() {
-        "-h" | "--help" | "-help" | "help" => {
+        "-h" | "--help" => {
             print_help();
             std::process::exit(0);
         }
-        "-v" | "--version" | "-version" | "version" => {
+        "-v" | "--version" => {
             println!("pesu-wifi v{}", VERSION);
             std::process::exit(0);
         }
-        "-p" | "--passwords" | "-passwords" => {
+        "-p" | "--passwords" => {
             std::process::exit(cmd_list(true));
         }
-        "-s" | "--status" | "status" => {
+        "status" => {
             cmd_status();
             std::process::exit(0);
         }
@@ -482,8 +482,8 @@ fn main() {
         "del" => {
             std::process::exit(cmd_del(cmd_args));
         }
-        "list" | "-l" | "--list" => {
-            let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords" || a == "-passwords");
+        "list" => {
+            let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords");
             std::process::exit(cmd_list(show_pw));
         }
         "__list-accounts" => {
