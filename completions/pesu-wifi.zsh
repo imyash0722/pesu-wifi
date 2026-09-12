@@ -21,7 +21,9 @@ _pesu_wifi() {
             '-h[Print help information]' \
             '--help[Print help information]' \
             '-v[Print version information]' \
-            '--version[Print version information]'
+            '--version[Print version information]' \
+            '-p[List saved accounts with passwords]' \
+            '--passwords[List saved accounts with passwords]'
         return
     fi
 

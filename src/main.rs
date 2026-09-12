@@ -400,6 +400,7 @@ fn print_help() {
 {bold_options}
   {c_help} Print help information
   {c_version} Print version information
+  {c_passwords} List saved accounts with passwords
 "#,
         name = color(&format!("{}{}", BOLD, CYAN), "PESU WiFi Manager"),
         ver = color(DIM, &format!("v{}", VERSION)),
@@ -421,6 +422,7 @@ fn print_help() {
         c_list = color(GREEN, &format!("{:<26}", "list [-p, --passwords]")),
         c_help = color(GREEN, &format!("{:<26}", "-h, --help")),
         c_version = color(GREEN, &format!("{:<26}", "-v, --version")),
+        c_passwords = color(GREEN, &format!("{:<26}", "-p, --passwords")),
     );
     print!("{}", banner);
 }
@@ -436,21 +438,24 @@ fn main() {
     let cmd = args[1].to_lowercase();
     let cmd_args = &args[2..];
 
-    if cmd_args.iter().any(|a| a == "-h" || a == "--help") {
+    if cmd_args.iter().any(|a| a == "-h" || a == "--help" || a == "-help") {
         print_help();
         std::process::exit(0);
     }
 
     match cmd.as_str() {
-        "-h" | "--help" | "help" => {
+        "-h" | "--help" | "-help" | "help" => {
             print_help();
             std::process::exit(0);
         }
-        "-v" | "--version" | "version" => {
+        "-v" | "--version" | "-version" | "version" => {
             println!("pesu-wifi v{}", VERSION);
             std::process::exit(0);
         }
-        "status" => {
+        "-p" | "--passwords" | "-passwords" => {
+            std::process::exit(cmd_list(true));
+        }
+        "-s" | "--status" | "status" => {
             cmd_status();
             std::process::exit(0);
         }
@@ -477,8 +482,8 @@ fn main() {
         "del" => {
             std::process::exit(cmd_del(cmd_args));
         }
-        "list" => {
-            let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords");
+        "list" | "-l" | "--list" => {
+            let show_pw = cmd_args.iter().any(|a| a == "-p" || a == "--passwords" || a == "-passwords");
             std::process::exit(cmd_list(show_pw));
         }
         "__list-accounts" => {

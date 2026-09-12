@@ -1,6 +1,6 @@
 [package]
 name = "pesu-wifi"
-version = "3.0.2"
+version = "3.0.3"
 edition = "2021"
 authors = ["imyash0722"]
 description = "High-performance native Rust captive portal login manager and keepalive watchdog for PES University"
