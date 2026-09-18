@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.4.0 — Continuous 24/7 Daemon, Sleep & Idle Immunity, Wi-Fi Sleep Prevention & Win32 Away Mode](#v340--continuous-247-daemon-sleep--idle-immunity-wi-fi-sleep-prevention--win32-away-mode)
+  - [Overview & Major Highlights](#v340-overview--major-highlights)
 - [v3.3.0 — Windows 10/11 Support, Win32 Native Wifi, Toast Notifications & Scoop](#v330--windows-1011-support-win32-native-wifi-toast-notifications--scoop)
   - [Overview & Major Highlights](#v330-overview--major-highlights)
 - [v3.2.0 — Server-Load Minimization, Keepalive Tuning & Resilient Architecture](#v320--server-load-minimization-keepalive-tuning--resilient-architecture)
@@ -14,15 +16,28 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 
 ---
 
+## v3.4.0 — Continuous 24/7 Daemon, Sleep & Idle Immunity, Wi-Fi Sleep Prevention & Win32 Away Mode
+
+**Release Date:** September 19, 2026  
+**Git Tag:** [`v3.4.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.4.0)  
+
+### v3.4.0 Overview & Major Highlights
+- **Continuous 24/7 Background Daemon:** Operates completely independently of any external Wi-Fi manager (purged `contrib/99-pesu-wifi.sh` and eliminated all dispatcher scripts, hooks, and root requirements). Runs persistently across your session via user systemd (`pesu-wifi.service`) on Linux and Task Scheduler / pure Win32 `CREATE_NO_WINDOW` on Windows.
+- **Power-Saving & Sleep Immunity:**
+  - Automatically disables 802.11 Wi-Fi power saving on campus connections (`nmcli` powersave 2 on Linux, `powercfg` Wireless Maximum Performance on Windows) to prevent the adapter from entering low-power sleep or dropping packets.
+  - Acquires active OS sleep/idle inhibitor locks (`systemd-inhibit` on Linux, Win32 `SetThreadExecutionState` with Away Mode `ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED` on Windows) while on campus Wi-Fi. Keeps CPU, network, and background tasks active even when the display sleeps.
+  - Releases power inhibitor locks gracefully upon disconnecting or leaving campus.
+- **Instant Auto-Login on Campus Connection:** Wakes up within 5s of connecting to campus Wi-Fi (`PESU-EC-Campus`) and authenticates immediately, while resting in ultra-low overhead standby (0% CPU, zero network requests) when disconnected or on non-campus networks.
+- **Systemd Service Hardening:** Configured `Nice=-5`, `MemoryLow=32M`, and `Slice=session.slice` in `pesu-wifi.service` to prevent memory eviction under system pressure.
+
+---
+
 ## v3.3.0 — Windows 10/11 Support, Win32 Native Wifi, Toast Notifications & Scoop
 
 **Release Date:** September 18, 2026  
 **Git Tag:** [`v3.3.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.3.0)  
 
 ### v3.3.0 Overview & Major Highlights
-- **Continuous 24/7 Background Daemon:** Operates independently of any Wi-Fi manager (completely eliminated NetworkManager dispatcher scripts, hooks, and root requirements). Runs persistently across your session via user systemd on Linux and Task Scheduler / pure Win32 `CREATE_NO_WINDOW` on Windows.
-- **Power-Saving & Sleep Immunity:** Automatically disables 802.11 Wi-Fi power saving on campus connections (`nmcli` powersave 2 on Linux, `powercfg` Wireless Maximum Performance on Windows) and acquires active system power inhibitor locks (`systemd-inhibit` on Linux, Win32 `SetThreadExecutionState` with Away Mode on Windows) to prevent the OS and Wi-Fi adapter from sleeping or throttling background network tasks.
-- **Instant Auto-Login on Campus Connection:** Wakes up within 5s of connecting to campus Wi-Fi and authenticates immediately, while resting in ultra-low overhead standby (0% CPU, zero network requests) when disconnected or on home Wi-Fi.
 - **100% Feature Parity on Windows:** Windows users have the exact same capabilities as Linux: auto-login, continuous watchdog daemon, multi-account switching, Wi-Fi self-healing, and real-time status reporting.
 - **Native Win32 Wi-Fi Subsystem (`WlanAPI.dll`):** Direct integration with Windows Native Wifi API via `windows-sys` (`WlanOpenHandle`, `WlanEnumInterfaces`, `WlanQueryInterface`) for zero-overhead SSID detection, with robust fallback to `netsh`.
 - **Native Windows 10/11 Desktop Toast Notifications:** Integrated interactive Windows Action Center toast notifications using WinRT XML templates for successful logins, keepalive session renewals, and auth alerts.

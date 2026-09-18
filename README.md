@@ -55,7 +55,7 @@ scoop install https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/cont
 ```
 
 #### Option 3: Pre-compiled Standalone Executable
-Download `pesu-wifi-v3.3.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
+Download `pesu-wifi-v3.4.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
 
 ---
 
@@ -64,14 +64,14 @@ Download `pesu-wifi-v3.3.0-windows-x86_64.zip` from [GitHub Releases](https://gi
 #### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
 
 ```bash
-curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.3.0/pesu-wifi-v3.3.0-linux-x86_64.tar.gz | tar -xz
-cd pesu-wifi-v3.3.0-linux-x86_64 && ./install.sh
+curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.4.0/pesu-wifi-v3.4.0-linux-x86_64.tar.gz | tar -xz
+cd pesu-wifi-v3.4.0-linux-x86_64 && ./install.sh
 ```
 
 #### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
 
 ```bash
-sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.3.0/pesu-wifi-3.3.0-x86_64.pkg.tar.zst
+sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.4.0/pesu-wifi-3.4.0-x86_64.pkg.tar.zst
 ```
 
 #### Option C: Build from Source (Requires Cargo / Rust)
