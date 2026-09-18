@@ -21,6 +21,7 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 
 ### v3.3.0 Overview & Major Highlights
 - **Continuous 24/7 Background Daemon:** Operates independently of any Wi-Fi manager (completely eliminated NetworkManager dispatcher scripts, hooks, and root requirements). Runs persistently across your session via user systemd on Linux and Task Scheduler / pure Win32 `CREATE_NO_WINDOW` on Windows.
+- **Power-Saving & Sleep Immunity:** Automatically disables 802.11 Wi-Fi power saving on campus connections (`nmcli` powersave 2 on Linux, `powercfg` Wireless Maximum Performance on Windows) and acquires active system power inhibitor locks (`systemd-inhibit` on Linux, Win32 `SetThreadExecutionState` with Away Mode on Windows) to prevent the OS and Wi-Fi adapter from sleeping or throttling background network tasks.
 - **Instant Auto-Login on Campus Connection:** Wakes up within 5s of connecting to campus Wi-Fi and authenticates immediately, while resting in ultra-low overhead standby (0% CPU, zero network requests) when disconnected or on home Wi-Fi.
 - **100% Feature Parity on Windows:** Windows users have the exact same capabilities as Linux: auto-login, continuous watchdog daemon, multi-account switching, Wi-Fi self-healing, and real-time status reporting.
 - **Native Win32 Wi-Fi Subsystem (`WlanAPI.dll`):** Direct integration with Windows Native Wifi API via `windows-sys` (`WlanOpenHandle`, `WlanEnumInterfaces`, `WlanQueryInterface`) for zero-overhead SSID detection, with robust fallback to `netsh`.

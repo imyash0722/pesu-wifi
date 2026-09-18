@@ -179,6 +179,91 @@ pub fn notify_desktop(title: &str, message: &str, _urgency: &str) {
         .output();
 }
 
+struct SleepInhibitor {
+    #[cfg(unix)]
+    child: Option<std::process::Child>,
+    #[cfg(windows)]
+    active: bool,
+}
+
+impl SleepInhibitor {
+    fn new() -> Self {
+        Self {
+            #[cfg(unix)]
+            child: None,
+            #[cfg(windows)]
+            active: false,
+        }
+    }
+
+    fn activate(&mut self) {
+        #[cfg(unix)]
+        {
+            if self.child.is_none() {
+                if let Ok(child) = Command::new("systemd-inhibit")
+                    .args([
+                        "--what=idle:sleep",
+                        "--who=PESU WiFi",
+                        "--why=Continuous campus Wi-Fi keepalive and auto-login",
+                        "--mode=block",
+                        "sleep",
+                        "infinity",
+                    ])
+                    .spawn()
+                {
+                    self.child = Some(child);
+                    log("⚡ Power inhibitor active: system sleep & Wi-Fi power saving prevented.");
+                }
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if !self.active {
+                unsafe {
+                    windows_sys::Win32::System::Power::SetThreadExecutionState(
+                        windows_sys::Win32::System::Power::ES_CONTINUOUS
+                            | windows_sys::Win32::System::Power::ES_SYSTEM_REQUIRED
+                            | windows_sys::Win32::System::Power::ES_AWAYMODE_REQUIRED,
+                    );
+                }
+                self.active = true;
+                log("⚡ Power inhibitor active: system sleep & Wi-Fi power saving prevented.");
+            }
+        }
+    }
+
+    fn deactivate(&mut self) {
+        #[cfg(unix)]
+        {
+            if let Some(mut child) = self.child.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+                log("⚡ Power inhibitor released: normal system power profile restored.");
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if self.active {
+                unsafe {
+                    windows_sys::Win32::System::Power::SetThreadExecutionState(
+                        windows_sys::Win32::System::Power::ES_CONTINUOUS,
+                    );
+                }
+                self.active = false;
+                log("⚡ Power inhibitor released: normal system power profile restored.");
+            }
+        }
+    }
+}
+
+impl Drop for SleepInhibitor {
+    fn drop(&mut self) {
+        self.deactivate();
+    }
+}
+
 pub fn run_daemon() -> ! {
     let _lock = acquire_daemon_lock();
 
@@ -203,6 +288,7 @@ pub fn run_daemon() -> ! {
     let mut consecutive_session_drops = 0;
     let mut last_standby_state: Option<String> = None;
     let mut was_standby = true;
+    let mut inhibitor = SleepInhibitor::new();
 
     loop {
         let interval = get_keep_alive_interval();
@@ -224,23 +310,31 @@ pub fn run_daemon() -> ! {
                     ));
                     last_standby_state = Some(state_str);
                 }
+                inhibitor.deactivate();
                 was_standby = true;
                 unreachable_streak = 0;
                 consecutive_session_drops = 0;
                 sleep(Duration::from_secs(5));
                 continue;
-            } else if last_standby_state.is_some() {
-                log(&format!(
-                    "Connected to campus Wi-Fi '{}'. Activating keepalive watchdog.",
-                    ssid
-                ));
-                last_standby_state = None;
+            } else {
+                // Campus network confirmed: disable Wi-Fi power saving and prevent sleep
+                wifi::disable_wifi_powersave(ssid);
+                inhibitor.activate();
+
+                if last_standby_state.is_some() {
+                    log(&format!(
+                        "Connected to campus Wi-Fi '{}'. Activating keepalive watchdog.",
+                        ssid
+                    ));
+                    last_standby_state = None;
+                }
             }
         } else {
             if last_standby_state.as_deref() != Some("disconnected") {
                 log("Wi-Fi disconnected. Waiting for connection...");
                 last_standby_state = Some("disconnected".to_string());
             }
+            inhibitor.deactivate();
             was_standby = true;
             unreachable_streak = 0;
             consecutive_session_drops = 0;

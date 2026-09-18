@@ -254,6 +254,69 @@ pub fn heal_network(tier: u8) {
     }
 }
 
+#[cfg(unix)]
+pub fn disable_wifi_powersave(ssid: &str) {
+    // 1. Disable 802.11 power saving on this campus connection (powersave = 2)
+    let _ = Command::new("nmcli")
+        .args(["connection", "modify", ssid, "802-11-wireless.powersave", "2"])
+        .output();
+
+    // 2. Disable power save on all active wireless connections
+    if let Ok(out) = Command::new("nmcli")
+        .args(["-t", "-f", "UUID,TYPE", "con", "show", "--active"])
+        .output()
+    {
+        let txt = String::from_utf8_lossy(&out.stdout);
+        for line in txt.lines() {
+            let parts: Vec<&str> = line.split(':').collect();
+            if parts.len() >= 2 && parts[1].contains("802-11-wireless") {
+                let _ = Command::new("nmcli")
+                    .args(["connection", "modify", parts[0], "802-11-wireless.powersave", "2"])
+                    .output();
+            }
+        }
+    }
+
+    // 3. Ensure Wi-Fi radio is fully on
+    let _ = Command::new("nmcli")
+        .args(["radio", "wifi", "on"])
+        .output();
+}
+
+#[cfg(windows)]
+pub fn disable_wifi_powersave(_ssid: &str) {
+    // 1. Set Wireless Adapter Power Saving Mode to Maximum Performance (0) for AC and DC
+    let _ = Command::new("powercfg")
+        .args([
+            "/SETACVALUEINDEX",
+            "SCHEME_CURRENT",
+            "19cbb8fa-5279-450e-9fac-8a3d5fedd0c1",
+            "12bbebe6-58d6-4636-95bb-3217ef867c1a",
+            "0",
+        ])
+        .output();
+    let _ = Command::new("powercfg")
+        .args([
+            "/SETDCVALUEINDEX",
+            "SCHEME_CURRENT",
+            "19cbb8fa-5279-450e-9fac-8a3d5fedd0c1",
+            "12bbebe6-58d6-4636-95bb-3217ef867c1a",
+            "0",
+        ])
+        .output();
+    let _ = Command::new("powercfg")
+        .args(["/SETACTIVE", "SCHEME_CURRENT"])
+        .output();
+
+    // 2. Disable device sleep on disconnect on physical Wi-Fi adapters
+    let script = "Get-NetAdapter -Physical -ErrorAction SilentlyContinue | \
+                  Where-Object { $_.InterfaceDescription -like '*Wi-Fi*' -or $_.MediaType -eq 'Native 802.11' } | \
+                  ForEach-Object { Set-NetAdapterPowerManagement -Name $_.Name -DeviceSleepOnDisconnect Disabled -WakeOnMagicPacket Disabled -ErrorAction SilentlyContinue }";
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", script])
+        .output();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,7 +6,13 @@ After=network.target
 Type=simple
 ExecStart=/usr/bin/pesu-wifi daemon
 Restart=always
-RestartSec=5
+RestartSec=3
+
+# Prevent kernel throttling or OOM freeze during power saving
+Nice=-5
+MemoryLow=32M
+Slice=session.slice
+
 StandardOutput=journal
 
 [Install]
