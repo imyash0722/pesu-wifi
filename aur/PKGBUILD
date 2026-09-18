@@ -27,7 +27,7 @@ pkgver() {
 
 build() {
   cd "${srcdir}/${_pkgname}"
-  cargo build --release --locked
+  CARGO_TARGET_DIR=target cargo build --release --locked
 }
 
 package() {
