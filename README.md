@@ -168,6 +168,7 @@ pesu-wifi stop
 | `PESU_PASSWORD` | Override active login password | *(Config file)* |
 | `PESU_PORTAL_BASE` | Portal gateway URL | `http://192.168.254.1:8090` |
 | `PESU_WIFI_CON` | Preferred Wi-Fi connection name | `PESU-EC-Campus` |
+| `PESU_KEEPALIVE_INTERVAL` | Keepalive watchdog polling interval (seconds) | `180` |
 | `FORCE_COLOR` | Force ANSI color formatting (`1` / `0`) | Auto-detected |
 
 ---

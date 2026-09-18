@@ -5,7 +5,11 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub active_user: Option<String>,
@@ -13,6 +17,25 @@ pub struct Config {
     pub accounts: HashMap<String, String>,
     #[serde(default)]
     pub preferred_ssid: Option<String>,
+    #[serde(default)]
+    pub portal_url: Option<String>,
+    #[serde(default)]
+    pub keep_alive_interval: Option<u64>,
+    #[serde(default = "default_true")]
+    pub notifications: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            active_user: None,
+            accounts: HashMap::new(),
+            preferred_ssid: None,
+            portal_url: None,
+            keep_alive_interval: None,
+            notifications: true,
+        }
+    }
 }
 
 pub fn get_config_dir() -> PathBuf {
@@ -81,7 +104,7 @@ pub fn load_config() -> Config {
                     return Config {
                         active_user: Some(u),
                         accounts,
-                        preferred_ssid: None,
+                        ..Default::default()
                     };
                 }
             }
@@ -98,7 +121,7 @@ pub fn load_config() -> Config {
             return Config {
                 active_user: Some(u),
                 accounts,
-                preferred_ssid: None,
+                ..Default::default()
             };
         }
     }
@@ -136,9 +159,9 @@ pub fn save_config(config: &Config) -> std::io::Result<()> {
         .open(&env_path)?;
 
     let active_usr = config.active_user.as_deref().unwrap_or("");
-    let active_pwd = active_usr
-        .strip_prefix("")
-        .and_then(|u| config.accounts.get(u))
+    let active_pwd = config
+        .accounts
+        .get(active_usr)
         .map(|s| s.as_str())
         .unwrap_or("");
 
@@ -180,12 +203,18 @@ mod tests {
             active_user: Some("testuser".to_string()),
             accounts,
             preferred_ssid: Some("PESU-EC-Campus".to_string()),
+            portal_url: Some("http://192.168.254.1:8090".to_string()),
+            keep_alive_interval: Some(180),
+            notifications: true,
         };
         let serialized = serde_json::to_string(&cfg).unwrap();
         let deserialized: Config = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.active_user, Some("testuser".to_string()));
         assert_eq!(deserialized.accounts.get("testuser").unwrap(), "testpass");
         assert_eq!(deserialized.preferred_ssid, Some("PESU-EC-Campus".to_string()));
+        assert_eq!(deserialized.portal_url, Some("http://192.168.254.1:8090".to_string()));
+        assert_eq!(deserialized.keep_alive_interval, Some(180));
+        assert!(deserialized.notifications);
     }
 
     #[test]
@@ -202,6 +231,7 @@ mod tests {
             active_user: Some("PES2UG25CS000".to_string()),
             accounts,
             preferred_ssid: Some("PESU-EC-Campus".to_string()),
+            ..Default::default()
         };
 
         save_config(&cfg).unwrap();

@@ -8,17 +8,51 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
-pub const LOCK_FILE: &str = "/tmp/pesu_wifi_daemon.lock";
-pub const KEEP_ALIVE_INTERVAL: u64 = 60;
+pub const KEEP_ALIVE_INTERVAL: u64 = 180;
+
+pub fn get_keep_alive_interval() -> u64 {
+    if let Ok(env_interval) = std::env::var("PESU_KEEPALIVE_INTERVAL") {
+        if let Ok(v) = env_interval.parse() {
+            return v;
+        }
+    }
+    let cfg = config::load_config();
+    if let Some(interval) = cfg.keep_alive_interval {
+        if interval > 0 {
+            return interval;
+        }
+    }
+    KEEP_ALIVE_INTERVAL
+}
+
+pub fn calculate_jittered_interval(base_interval: u64) -> u64 {
+    // ±5s anti-storm jitter using millisecond timestamp modulo
+    let jitter = (portal::get_timestamp() % 11) as i64 - 5;
+    (base_interval as i64 + jitter).max(10) as u64
+}
+
+pub fn get_lock_file_path() -> std::path::PathBuf {
+    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
+        if !runtime_dir.is_empty() {
+            return std::path::PathBuf::from(runtime_dir).join("pesu_wifi_daemon.lock");
+        }
+    }
+    config::get_config_dir().join("daemon.lock")
+}
 
 pub fn acquire_daemon_lock() -> File {
-    let file = OpenOptions::new()
+    let lock_path = get_lock_file_path();
+    if let Some(parent) = lock_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let mut file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(LOCK_FILE)
+        .open(&lock_path)
         .unwrap_or_else(|e| {
-            eprintln!("Failed to open lock file: {}", e);
+            eprintln!("Failed to open lock file ({}): {}", lock_path.display(), e);
             std::process::exit(1);
         });
 
@@ -27,23 +61,39 @@ pub fn acquire_daemon_lock() -> File {
         std::process::exit(0);
     }
 
+    // Write current PID to lock file
+    use std::io::Write;
+    let _ = file.set_len(0);
+    let _ = writeln!(file, "{}", std::process::id());
+    let _ = file.flush();
+
     file
 }
 
 pub fn is_daemon_running() -> (bool, Option<u32>) {
-    if let Ok(file) = OpenOptions::new()
+    let lock_path = get_lock_file_path();
+    if let Ok(mut file) = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(LOCK_FILE)
+        .open(&lock_path)
     {
         if file.try_lock_exclusive().is_ok() {
             let _ = file.unlock();
             return (false, None);
+        } else {
+            // Lock is held; try reading PID from lockfile
+            use std::io::Read;
+            let mut content = String::new();
+            if file.read_to_string(&mut content).is_ok() {
+                if let Ok(pid) = content.trim().parse::<u32>() {
+                    return (true, Some(pid));
+                }
+            }
         }
     }
 
-    // Lock was held or pgrep
+    // Lock was held or pgrep fallback
     if let Ok(out) = Command::new("pgrep")
         .args(["-f", "pesu[-_]wifi.*daemon"])
         .output()
@@ -63,8 +113,17 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
 }
 
 pub fn notify_desktop(title: &str, message: &str, urgency: &str) {
+    let cfg = config::load_config();
+    if !cfg.notifications {
+        return;
+    }
+    if let Ok(env_val) = std::env::var("PESU_NOTIFICATIONS") {
+        if env_val == "0" || env_val.eq_ignore_ascii_case("false") {
+            return;
+        }
+    }
     let _ = Command::new("notify-send")
-        .args(["-a", "PESU WiFi", "-u", urgency, title, message])
+        .args(["-a", "PESU WiFi", "-i", "network-wireless", "-u", urgency, title, message])
         .output();
 }
 
@@ -82,9 +141,10 @@ pub fn run_daemon() -> ! {
         }
     };
 
+    let interval = get_keep_alive_interval();
     log(&format!(
         "Starting keepalive watchdog for '{}' (interval: {}s)...",
-        username, KEEP_ALIVE_INTERVAL
+        username, interval
     ));
 
     let mut unreachable_streak = 0;
@@ -92,6 +152,7 @@ pub fn run_daemon() -> ! {
     let mut last_standby_state: Option<String> = None;
 
     loop {
+        let interval = get_keep_alive_interval();
         if let (Some(u), Some(p)) = config::get_active_credentials() {
             username = u;
             password = p;
@@ -106,13 +167,13 @@ pub fn run_daemon() -> ! {
                 if last_standby_state.as_deref() != Some(&state_str) {
                     log(&format!(
                         "Connected to non-campus Wi-Fi '{}'. Watchdog in standby (polling in {}s)...",
-                        ssid, KEEP_ALIVE_INTERVAL
+                        ssid, interval
                     ));
                     last_standby_state = Some(state_str);
                 }
                 unreachable_streak = 0;
                 consecutive_session_drops = 0;
-                sleep(Duration::from_secs(KEEP_ALIVE_INTERVAL));
+                sleep(Duration::from_secs(interval));
                 continue;
             } else if last_standby_state.is_some() {
                 log(&format!(
@@ -134,7 +195,27 @@ pub fn run_daemon() -> ! {
 
         let current_ssid_str = current_ssid.unwrap_or_default();
 
-        // 1. Check if portal gateway is online
+        // 1. Primary check: check session heartbeat directly.
+        // /live is a lightweight ~35-byte XML query. If live, gateway is guaranteed reachable,
+        // eliminating the heavy /httpclient.html full page download completely.
+        if portal::check_live(Some(&username), false) {
+            if unreachable_streak > 0 {
+                log(&format!(
+                    "✔ Connectivity restored after {} failed check(s).",
+                    unreachable_streak
+                ));
+                unreachable_streak = 0;
+            }
+            consecutive_session_drops = 0;
+            log(&format!(
+                "Session active ({}). Next check in {}s.",
+                username, interval
+            ));
+            sleep(Duration::from_secs(calculate_jittered_interval(interval)));
+            continue;
+        }
+
+        // 2. Session check failed: verify whether the portal gateway itself is reachable
         if !portal::is_portal_online() {
             unreachable_streak += 1;
             consecutive_session_drops = 0;
@@ -164,7 +245,7 @@ pub fn run_daemon() -> ! {
             continue;
         }
 
-        // 2. Portal is online
+        // 3. Portal gateway is online, but our session expired or dropped
         if unreachable_streak > 0 {
             log(&format!(
                 "✔ Connectivity restored after {} failed check(s).",
@@ -173,42 +254,32 @@ pub fn run_daemon() -> ! {
             unreachable_streak = 0;
         }
 
-        // 3. Check if session is live
-        if portal::check_live(Some(&username), true) {
-            consecutive_session_drops = 0;
-            log(&format!(
-                "Session active ({}). Next check in {}s.",
-                username, KEEP_ALIVE_INTERVAL
-            ));
-            sleep(Duration::from_secs(KEEP_ALIVE_INTERVAL));
-        } else {
-            consecutive_session_drops += 1;
-            if consecutive_session_drops < 2 {
-                log("⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 5s before re-authenticating...");
-                sleep(Duration::from_secs(5));
-                continue;
-            }
+        consecutive_session_drops += 1;
+        if consecutive_session_drops < 2 {
+            log("⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 5s before re-authenticating...");
+            sleep(Duration::from_secs(5));
+            continue;
+        }
 
-            consecutive_session_drops = 0;
-            log(&format!("Session expired for '{}'. Logging in...", username));
-            match portal::do_login(&username, &password) {
-                Ok(_) => {
-                    log(&format!(
-                        "✔ Logged in as '{}'. Next check in {}s.",
-                        username, KEEP_ALIVE_INTERVAL
-                    ));
-                    notify_desktop(
-                        "PESU WiFi",
-                        &format!("Session restored: Logged in as {}", username),
-                        "normal",
-                    );
-                    sleep(Duration::from_secs(KEEP_ALIVE_INTERVAL));
-                }
-                Err(err) => {
-                    log(&format!("✖ Login failed: {}", err));
-                    notify_desktop("PESU WiFi Login Failed", &err, "critical");
-                    sleep(Duration::from_secs(15));
-                }
+        consecutive_session_drops = 0;
+        log(&format!("Session expired for '{}'. Logging in...", username));
+        match portal::do_login(&username, &password) {
+            Ok(_) => {
+                log(&format!(
+                    "✔ Logged in as '{}'. Next check in {}s.",
+                    username, interval
+                ));
+                notify_desktop(
+                    "PESU WiFi",
+                    &format!("Session restored: Logged in as {}", username),
+                    "normal",
+                );
+                sleep(Duration::from_secs(calculate_jittered_interval(interval)));
+            }
+            Err(err) => {
+                log(&format!("✖ Login failed: {}", err));
+                notify_desktop("PESU WiFi Login Failed", &err, "critical");
+                sleep(Duration::from_secs(15));
             }
         }
     }
@@ -299,3 +370,34 @@ pub fn cmd_stop() -> i32 {
     }
     0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_keep_alive_interval_default() {
+        std::env::remove_var("PESU_KEEPALIVE_INTERVAL");
+        assert_eq!(get_keep_alive_interval(), 180);
+    }
+
+    #[test]
+    fn test_keep_alive_interval_env_override() {
+        std::env::set_var("PESU_KEEPALIVE_INTERVAL", "120");
+        assert_eq!(get_keep_alive_interval(), 120);
+        std::env::remove_var("PESU_KEEPALIVE_INTERVAL");
+    }
+
+    #[test]
+    fn test_calculate_jittered_interval() {
+        let val = calculate_jittered_interval(180);
+        assert!(val >= 175 && val <= 185);
+    }
+
+    #[test]
+    fn test_lock_file_path_resolution() {
+        let path = get_lock_file_path();
+        assert!(path.to_string_lossy().contains("daemon.lock") || path.to_string_lossy().contains("pesu_wifi_daemon.lock"));
+    }
+}
+

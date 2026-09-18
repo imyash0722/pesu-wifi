@@ -30,6 +30,22 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 
 ---
 
+## v3.2.0 — Server-Load Minimization, Keepalive Tuning & Resilient Architecture
+
+**Release Date:** September 18, 2026  
+**Git Tag:** [`v3.2.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.2.0)  
+
+### v3.2.0 Overview & Major Highlights
+- **180s Keepalive Interval:** Increased default keepalive watchdog polling interval from 60s to 180s, matching captive portal session lifetimes and slashing background requests by 66.7%.
+- **Elimination of Redundant Gateway Page Downloads:** Inverted the daemon loop to check session heartbeat (`/live`) directly. Skips downloading the heavy full HTML page (`/httpclient.html`) on healthy cycles, reducing network traffic by >98%.
+- **HTTP Keep-Alive Connection Reuse:** Removed forced `Connection: close` across all portal endpoints, allowing TCP socket reuse and eliminating connection tracking (`ip_conntrack`) table exhaustion on campus gateways.
+- **Anti-Storm Desynchronization Jitter:** Added dynamic ±5s jitter to keepalive intervals to eliminate simultaneous "thundering herd" gateway query bursts during campus-wide network reconnects.
+- **Multi-Campus Dynamic Gateway Discovery:** Support `portal_url`, `keep_alive_interval`, and `notifications` in `~/.config/pesu-wifi/config.json`, making custom URLs persistent for background systemd services.
+- **Secure Runtime Lockfile & PID Lookup:** Replaced `/tmp/pesu_wifi_daemon.lock` with user-isolated `$XDG_RUNTIME_DIR` / config directory locks, with automatic PID recording to eliminate process tree scans.
+- **NetworkManager Dispatcher Hook:** Added `contrib/99-pesu-wifi.sh` for sub-50ms instant authentication when waking laptops or reconnecting to campus Wi-Fi.
+
+---
+
 ## v3.1.0 — Clap Derive Migration & Production CLI Architecture
 
 **Release Date:** September 12, 2026  

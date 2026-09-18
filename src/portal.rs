@@ -4,8 +4,22 @@ use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+pub const USER_AGENT: &str =
+    "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0";
+
 pub fn get_portal_base() -> String {
-    std::env::var("PESU_PORTAL_BASE").unwrap_or_else(|_| "http://192.168.254.1:8090".to_string())
+    if let Ok(env_base) = std::env::var("PESU_PORTAL_BASE") {
+        if !env_base.trim().is_empty() {
+            return env_base.trim().to_string();
+        }
+    }
+    let cfg = config::load_config();
+    if let Some(portal_url) = cfg.portal_url {
+        if !portal_url.trim().is_empty() {
+            return portal_url.trim().to_string();
+        }
+    }
+    "http://192.168.254.1:8090".to_string()
 }
 
 pub fn get_login_url() -> String {
@@ -118,9 +132,8 @@ pub fn is_portal_online() -> bool {
     let url = format!("{}/httpclient.html", get_portal_base());
     let req = agent
         .get(&url)
-        .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")
-        .set("Accept-Language", "en-US,en;q=0.5")
-        .set("Connection", "close");
+        .set("User-Agent", USER_AGENT)
+        .set("Accept-Language", "en-US,en;q=0.5");
 
     match req.call() {
         Ok(resp) => resp.status() >= 200 && resp.status() < 500,
@@ -151,9 +164,8 @@ pub fn check_live(username: Option<&str>, retry: bool) -> bool {
         );
         let req = agent
             .get(&url)
-            .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")
-            .set("Accept-Language", "en-US,en;q=0.5")
-            .set("Connection", "close");
+            .set("User-Agent", USER_AGENT)
+            .set("Accept-Language", "en-US,en;q=0.5");
 
         match req.call() {
             Ok(resp) => {
@@ -186,9 +198,8 @@ pub fn do_login(username: &str, password: &str) -> Result<String, String> {
 
     let req = agent
         .post(&get_login_url())
-        .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")
-        .set("Accept-Language", "en-US,en;q=0.5")
-        .set("Connection", "close");
+        .set("User-Agent", USER_AGENT)
+        .set("Accept-Language", "en-US,en;q=0.5");
 
     let resp = req
         .send_form(&[
@@ -248,9 +259,8 @@ pub fn do_logout(username: Option<&str>) -> Result<String, String> {
 
     let req = agent
         .post(&get_logout_url())
-        .set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0")
-        .set("Accept-Language", "en-US,en;q=0.5")
-        .set("Connection", "close");
+        .set("User-Agent", USER_AGENT)
+        .set("Accept-Language", "en-US,en;q=0.5");
 
     let resp = req
         .send_form(&[

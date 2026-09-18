@@ -1,13 +1,13 @@
 [package]
 name = "pesu-wifi"
-version = "3.1.0"
+version = "3.2.0"
 edition = "2021"
 authors = ["imyash0722"]
 description = "High-performance native Rust captive portal login manager and keepalive watchdog for PES University"
 license = "MIT"
 
 [dependencies]
-ureq = { version = "2.12", features = ["json"] }
+ureq = "2.12"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 quick-xml = "0.36"

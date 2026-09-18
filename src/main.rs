@@ -14,14 +14,17 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 fn cmd_status() {
     let (username, _) = config::get_active_credentials();
 
-    let portal_alive = portal::is_portal_online();
-    let session_status = if portal_alive {
-        portal::check_live(username.as_deref(), false)
+    // Fast-path: check session heartbeat directly. If live, portal gateway is guaranteed reachable.
+    let (portal_alive, session_status) = if portal::check_live(username.as_deref(), false) {
+        (true, true)
     } else {
-        false
+        // Fallback: test if gateway itself is reachable (signed out vs unreachable)
+        let alive = portal::is_portal_online();
+        (alive, false)
     };
     let (daemon_active, daemon_pid) = daemon::is_daemon_running();
     let wifi_ssid = wifi::get_active_wifi_ssid();
+    let interval = daemon::get_keep_alive_interval();
 
     let gw_val = format!(
         "{} {}",
@@ -55,12 +58,12 @@ fn cmd_status() {
             "{}{}{}",
             color(GREEN, "Active"),
             color(DIM, &pid_str),
-            color(DIM, &format!(" [polling: {}s]", daemon::KEEP_ALIVE_INTERVAL))
+            color(DIM, &format!(" [polling: {}s]", interval))
         )
     } else {
         color(
             DIM,
-            &format!("Inactive [polling: {}s]", daemon::KEEP_ALIVE_INTERVAL),
+            &format!("Inactive [polling: {}s]", interval),
         )
     };
 
