@@ -5,28 +5,31 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.3.0 — Windows 10/11 Support, Win32 Native Wifi, Toast Notifications & Scoop](#v330--windows-1011-support-win32-native-wifi-toast-notifications--scoop)
+  - [Overview & Major Highlights](#v330-overview--major-highlights)
+- [v3.2.0 — Server-Load Minimization, Keepalive Tuning & Resilient Architecture](#v320--server-load-minimization-keepalive-tuning--resilient-architecture)
+  - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
-- [v3.0.4 — Strict Standard POSIX Flags & Clean Syntax Enforcement](#v304--strict-standard-posix-flags--clean-syntax-enforcement)
-  - [Overview & Major Highlights](#v304-overview--major-highlights)
-- [v3.0.3 — Top-Level Password Flags & Enhanced CLI Flag Support](#v303--top-level-password-flags--enhanced-cli-flag-support)
-  - [Overview & Major Highlights](#v303-overview--major-highlights)
-- [v3.0.2 — Standardized CLI Options, Unified Daemon Controls & Clean Output](#v302--standardized-cli-options-unified-daemon-controls--clean-output)
-  - [Overview & Major Highlights](#v302-overview--major-highlights)
-- [v3.0.1 — Build Stability, Non-POSIX Filesystem Support & Zero-Python Completions](#v301--build-stability-non-posix-filesystem-support--zero-python-completions)
-  - [Overview & Major Highlights](#v301-overview--major-highlights)
-- [v3.0.0 — Native Rust Rewrite, Blazing Speed & Zero Runtime Dependencies](#v300--native-rust-rewrite-blazing-speed--zero-runtime-dependencies)
-  - [Overview & Major Highlights](#v300-overview--major-highlights)
-  - [Performance Benchmarks](#v300-performance-benchmarks)
-  - [Architecture & Modular Breakdown](#v300-architecture--modular-breakdown)
-- [v2.3.0 — Resilient Watchdog, Process Controls & Distribution Hardening](#v230--resilient-watchdog-process-controls--distribution-hardening)
-  - [Overview & Major Highlights](#v230-overview--major-highlights)
-  - [Commit-by-Commit Technical Breakdown](#v230-commit-by-commit-technical-breakdown)
-- [v2.2.0 — Interactive Wi-Fi Selector & Multi-Account Management](#v220--interactive-wi-fi-selector--multi-account-management)
-  - [Overview & Major Highlights](#v220-overview--major-highlights)
-  - [Commit-by-Commit Technical Breakdown](#v220-commit-by-commit-technical-breakdown)
-- [v2.0.0 — Initial Release](#v200--initial-release)
-- [Release Management Guide](#release-management-guide)
+
+---
+
+## v3.3.0 — Windows 10/11 Support, Win32 Native Wifi, Toast Notifications & Scoop
+
+**Release Date:** September 18, 2026  
+**Git Tag:** [`v3.3.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.3.0)  
+
+### v3.3.0 Overview & Major Highlights
+- **100% Feature Parity on Windows:** Windows users now have the exact same capabilities as Linux: auto-login, background watchdog daemon, multi-account switching, Wi-Fi self-healing, and real-time status reporting.
+- **Native Win32 Wi-Fi Subsystem (`WlanAPI.dll`):** Direct integration with Windows Native Wifi API via `windows-sys` (`WlanOpenHandle`, `WlanEnumInterfaces`, `WlanQueryInterface`) for zero-overhead SSID detection, with robust fallback to `netsh`.
+- **Native Windows 10/11 Desktop Toast Notifications:** Integrated interactive Windows Action Center toast notifications using WinRT XML templates for successful logins, keepalive session renewals, and auth alerts.
+- **Background Daemon Management on Windows:** Implemented hidden background daemon execution (`pesu-wifi start`) and process termination (`pesu-wifi stop`) via Windows PowerShell process management.
+- **Cross-Platform Config & Secrets:** Transparent storage resolution adhering to Windows standards (`%APPDATA%\pesu-wifi\config.json`) and Unix standards (`~/.config/pesu-wifi/config.json`).
+- **Windows UTF-8 Console Rendering:** Automatic code page initialization (`SetConsoleOutputCP(65001)`) ensuring ANSI box-drawing frames and status indicators render cleanly in Windows Command Prompt and PowerShell.
+- **Windows Packaging & Installers:**
+  - One-click PowerShell installation script: `install.ps1`.
+  - Official Scoop bucket package manifest: `contrib/pesu-wifi.json`.
+  - Standalone release zip bundle: `pesu-wifi-v3.3.0-windows-x86_64.zip`.
 
 ---
 

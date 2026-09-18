@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
@@ -39,12 +40,25 @@ impl Default for Config {
 }
 
 pub fn get_config_dir() -> PathBuf {
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        if !xdg.is_empty() {
-            return PathBuf::from(xdg).join("pesu-wifi");
+    #[cfg(windows)]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            if !appdata.is_empty() {
+                return PathBuf::from(appdata).join("pesu-wifi");
+            }
         }
     }
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    #[cfg(unix)]
+    {
+        if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+            if !xdg.is_empty() {
+                return PathBuf::from(xdg).join("pesu-wifi");
+            }
+        }
+    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".config").join("pesu-wifi")
 }
 
@@ -140,23 +154,25 @@ pub fn save_config(config: &Config) -> std::io::Result<()> {
     }
 
     let json_path = conf_dir.join("config.json");
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&json_path)?;
+    let mut file_opts = OpenOptions::new();
+    file_opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        file_opts.mode(0o600);
+    }
+    let mut file = file_opts.open(&json_path)?;
 
     serde_json::to_writer_pretty(&mut file, config)?;
     file.flush()?;
 
     let env_path = conf_dir.join(".env");
-    let mut env_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&env_path)?;
+    let mut env_opts = OpenOptions::new();
+    env_opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        env_opts.mode(0o600);
+    }
+    let mut env_file = env_opts.open(&env_path)?;
 
     let active_usr = config.active_user.as_deref().unwrap_or("");
     let active_pwd = config
@@ -219,6 +235,7 @@ mod tests {
 
     #[test]
     fn test_save_and_load_config_permissions() {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
 
         let temp_dir = std::env::temp_dir().join(format!("pesu_test_{}", std::process::id()));
@@ -249,13 +266,16 @@ mod tests {
         assert!(json_path.is_file());
         assert!(env_path.is_file());
 
-        let json_mode = std::fs::metadata(&json_path).unwrap().permissions().mode() & 0o777;
-        let env_mode = std::fs::metadata(&env_path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(json_mode, 0o600);
-        assert_eq!(env_mode, 0o600);
+        #[cfg(unix)]
+        {
+            let json_mode = std::fs::metadata(&json_path).unwrap().permissions().mode() & 0o777;
+            let env_mode = std::fs::metadata(&env_path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(json_mode, 0o600);
+            assert_eq!(env_mode, 0o600);
 
-        let dir_mode = std::fs::metadata(temp_dir.join("pesu-wifi")).unwrap().permissions().mode() & 0o777;
-        assert_eq!(dir_mode, 0o700);
+            let dir_mode = std::fs::metadata(temp_dir.join("pesu-wifi")).unwrap().permissions().mode() & 0o777;
+            assert_eq!(dir_mode, 0o700);
+        }
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

@@ -1,6 +1,6 @@
 [package]
 name = "pesu-wifi"
-version = "3.2.0"
+version = "3.3.0"
 edition = "2021"
 authors = ["imyash0722"]
 description = "High-performance native Rust captive portal login manager and keepalive watchdog for PES University"
@@ -15,6 +15,15 @@ chrono = "0.4"
 fs2 = "0.4"
 rpassword = "7.3"
 clap = { version = "4.5", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_System_Console",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_NetworkManagement_WiFi",
+] }
 
 [profile.release]
 opt-level = 3

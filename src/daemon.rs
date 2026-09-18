@@ -1,6 +1,8 @@
 use crate::config;
 use crate::portal;
-use crate::ui::{color, log, print_err, print_info, print_ok, print_warn, DIM, RED, YELLOW};
+use crate::ui::{color, log, print_err, print_info, print_ok, print_warn, RED, YELLOW};
+#[cfg(unix)]
+use crate::ui::DIM;
 use crate::wifi;
 use fs2::FileExt;
 use std::fs::{File, OpenOptions};
@@ -93,9 +95,30 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
         }
     }
 
-    // Lock was held or pgrep fallback
+    // Lock was held: fallback to process table query
+    #[cfg(unix)]
     if let Ok(out) = Command::new("pgrep")
         .args(["-f", "pesu[-_]wifi.*daemon"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let current_pid = std::process::id();
+        for line in stdout.lines() {
+            if let Ok(pid) = line.trim().parse::<u32>() {
+                if pid != current_pid {
+                    return (true, Some(pid));
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    if let Ok(out) = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "Get-Process -Name pesu-wifi -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id",
+        ])
         .output()
     {
         let stdout = String::from_utf8_lossy(&out.stdout);
@@ -112,6 +135,7 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
     (true, None)
 }
 
+#[cfg(unix)]
 pub fn notify_desktop(title: &str, message: &str, urgency: &str) {
     let cfg = config::load_config();
     if !cfg.notifications {
@@ -124,6 +148,34 @@ pub fn notify_desktop(title: &str, message: &str, urgency: &str) {
     }
     let _ = Command::new("notify-send")
         .args(["-a", "PESU WiFi", "-i", "network-wireless", "-u", urgency, title, message])
+        .output();
+}
+
+#[cfg(windows)]
+pub fn notify_desktop(title: &str, message: &str, _urgency: &str) {
+    let cfg = config::load_config();
+    if !cfg.notifications {
+        return;
+    }
+    if let Ok(env_val) = std::env::var("PESU_NOTIFICATIONS") {
+        if env_val == "0" || env_val.eq_ignore_ascii_case("false") {
+            return;
+        }
+    }
+    let script = format!(
+        "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null; \
+        $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); \
+        $xml = [xml]$template.GetXml(); \
+        $texts = $xml.GetElementsByTagName('text'); \
+        $texts[0].AppendChild($xml.CreateTextNode('{}')) > $null; \
+        $texts[1].AppendChild($xml.CreateTextNode('{}')) > $null; \
+        $toast = [Windows.UI.Notifications.ToastNotification]::new($template); \
+        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('PESU WiFi').Show($toast);",
+        title.replace('\'', "''"),
+        message.replace('\'', "''")
+    );
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
         .output();
 }
 
@@ -285,6 +337,7 @@ pub fn run_daemon() -> ! {
     }
 }
 
+#[cfg(unix)]
 pub fn cmd_start(foreground: bool) -> i32 {
     let (username, password) = config::get_active_credentials();
     if username.is_none() || password.is_none() {
@@ -350,6 +403,73 @@ pub fn cmd_start(foreground: bool) -> i32 {
     }
 }
 
+#[cfg(windows)]
+pub fn cmd_start(foreground: bool) -> i32 {
+    let (username, password) = config::get_active_credentials();
+    if username.is_none() || password.is_none() {
+        print_err("No credentials configured.");
+        println!("{}", color(YELLOW, "  Run 'pesu-wifi add' first to save credentials."));
+        return 1;
+    }
+
+    if foreground {
+        run_daemon();
+    }
+
+    let (daemon_active, daemon_pid) = is_daemon_running();
+    if daemon_active {
+        let pid_str = daemon_pid
+            .map(|p| format!(" (PID: {})", p))
+            .unwrap_or_default();
+        print_ok(&format!("PESU WiFi daemon is already running{}.", pid_str));
+        return 0;
+    }
+
+    print_info("Starting PESU WiFi daemon in background...");
+    let exe = match std::env::current_exe() {
+        Ok(p) => p.to_string_lossy().to_string(),
+        Err(_) => "pesu-wifi.exe".to_string(),
+    };
+
+    let script = format!(
+        "Start-Process -FilePath '{}' -ArgumentList 'daemon' -WindowStyle Hidden",
+        exe.replace('\'', "''")
+    );
+    let res = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+        .output();
+
+    match res {
+        Ok(out) if out.status.success() => {
+            sleep(Duration::from_millis(600));
+            let (active, pid) = is_daemon_running();
+            if active {
+                let pid_str = pid.map(|p| format!(" (PID: {})", p)).unwrap_or_default();
+                print_ok(&format!("PESU WiFi daemon started successfully{}.", pid_str));
+                0
+            } else {
+                print_warn("Daemon attempted to start but may have exited.");
+                1
+            }
+        }
+        Ok(out) => {
+            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            let msg = if !err.is_empty() {
+                err
+            } else {
+                String::from_utf8_lossy(&out.stdout).trim().to_string()
+            };
+            print_err(&format!("Failed to start background process: {}", msg));
+            1
+        }
+        Err(e) => {
+            print_err(&format!("Error starting daemon: {}", e));
+            1
+        }
+    }
+}
+
+#[cfg(unix)]
 pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
 
@@ -359,6 +479,29 @@ pub fn cmd_stop() -> i32 {
 
     let _ = Command::new("pkill")
         .args(["-f", "pesu[-_]wifi.*daemon"])
+        .output();
+
+    sleep(Duration::from_millis(500));
+    let (still_active, _) = is_daemon_running();
+    if !still_active {
+        print_ok("PESU WiFi daemon stopped.");
+    } else {
+        print_warn("Daemon process may still be stopping.");
+    }
+    0
+}
+
+#[cfg(windows)]
+pub fn cmd_stop() -> i32 {
+    print_info("Stopping PESU WiFi daemon...");
+
+    let current_pid = std::process::id();
+    let script = format!(
+        "Get-CimInstance Win32_Process -Filter \"Name like 'pesu%wifi%'\" | Where-Object {{ $_.ProcessId -ne {} -and $_.CommandLine -like '*daemon*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}",
+        current_pid
+    );
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
         .output();
 
     sleep(Duration::from_millis(500));

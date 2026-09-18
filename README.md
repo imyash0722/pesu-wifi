@@ -20,37 +20,57 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 
 ## Features
 
+- **Cross-Platform Parity (Linux & Windows):** Native support for both Linux (systemd, NetworkManager, notify-send) and Windows 10/11 (Win32 WlanAPI, WinRT toast notifications, PowerShell background manager).
 - **Automated Keepalive Watchdog:** Heartbeat polling keeps your captive portal session alive indefinitely, even when browsers are closed or devices idle.
 - **Campus SSID Auto-Standby:** Automatically detects whether you are connected to a campus network. Gracefully pauses watchdog activities when at home or on non-campus Wi-Fi.
-- **Desktop Notifications:** Dispatches native system notifications (`notify-send`) on login, session renewal, and authentication errors.
+- **Desktop Notifications:** Dispatches native system notifications (`notify-send` on Linux, Action Center Toasts on Windows) on login, session renewal, and authentication errors.
 - **Sub-Second Status Detection:** Probes the local gateway in 10–30ms to detect session states without redundant network traffic.
 - **Multi-Account Switching:** Save multiple student accounts, switch the active user instantly, or explicitly log in under a specific account.
-- **Secure Atomic Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-wifi/.env` with strict `0600` permissions.
+- **Secure Atomic Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` (Linux) or `%APPDATA%\pesu-wifi\config.json` (Windows) with strict user-only permissions.
 - **Resilient Multi-Tier Self-Healing:**
-  - **Tier 1:** NetworkManager connection renegotiation.
-  - **Tier 2:** Wi-Fi radio power-cycling.
-  - **Tier 3:** Non-root Wi-Fi interface recovery.
+  - **Linux:** NetworkManager renegotiation, radio power cycling, and interface recovery.
+  - **Windows:** `netsh` profile renegotiation and interface disconnect/reconnect.
 - **Shell Auto-Completions:** Native tab-completion support for Bash, Zsh, and Fish shells.
-- **Modern CLI:** Clean ANSI status cards, colored indicators, and comprehensive verification suite.
+- **Modern CLI:** Clean ANSI status cards, colored indicators, and comprehensive verification suite with automatic UTF-8 console setup on Windows.
 
 ---
 
 ## Installation & Building
 
-### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
+### Windows (10 / 11)
 
-```bash
-curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.1.0/pesu-wifi-v3.1.0-linux-x86_64.tar.gz | tar -xz
-cd pesu-wifi-v3.1.0-linux-x86_64 && ./install.sh
+#### Option 1: PowerShell One-Click Setup (Recommended)
+Run in PowerShell (as your regular user):
+```powershell
+irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
 
-### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
-
-```bash
-sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.1.0/pesu-wifi-3.1.0-x86_64.pkg.tar.zst
+#### Option 2: Scoop Package Manager
+```powershell
+scoop install https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/contrib/pesu-wifi.json
 ```
 
-### Option C: Build from Source (Requires Cargo / Rust)
+#### Option 3: Pre-compiled Standalone Executable
+Download `pesu-wifi-v3.3.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
+
+---
+
+### Linux
+
+#### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
+
+```bash
+curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.3.0/pesu-wifi-v3.3.0-linux-x86_64.tar.gz | tar -xz
+cd pesu-wifi-v3.3.0-linux-x86_64 && ./install.sh
+```
+
+#### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
+
+```bash
+sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.3.0/pesu-wifi-3.3.0-x86_64.pkg.tar.zst
+```
+
+#### Option C: Build from Source (Requires Cargo / Rust)
 
 ```bash
 # Clone the repository
@@ -64,7 +84,7 @@ cargo build --release
 ./install.sh
 ```
 
-The compiled release binary is located at `target/release/pesu-wifi`.
+The compiled release binary is located at `target/release/pesu-wifi` (Linux) or `target/release/pesu-wifi.exe` (Windows).
 
 ---
 
@@ -207,6 +227,8 @@ pesu-wifi/
 
 ## Release History & Changelog
 
+- [**v3.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.3.0) ([Notes](CHANGELOG.md#v330--windows-1011-support-win32-native-wifi-toast-notifications--scoop)) — Full Windows 10/11 support, Win32 Native Wifi API (`WlanAPI.dll`), Action Center toast notifications, PowerShell background manager, and Scoop manifest.
+- [**v3.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.2.0) ([Notes](CHANGELOG.md#v320--server-load-minimization-keepalive-tuning--resilient-architecture)) — 180s keepalive tuning, direct heartbeat polling skipping HTML page downloads, socket reuse, anti-storm jitter, and NetworkManager dispatcher hook.
 - [**v3.1.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.1.0) ([Notes](CHANGELOG.md#v310--clap-derive-migration--production-cli-architecture)) — Full migration to `clap` derive parser, automatic multi-level help screens, contextual typo suggestions, and strict POSIX flag validation.
 - [**v3.0.4**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.4) ([Notes](CHANGELOG.md#v304--strict-standard-posix-flags--clean-syntax-enforcement)) — Strict POSIX/GNU options enforcement (`-v`, `--version`, `-h`, `--help`), pruned informal command aliases, and standard exit code `2`.
 - [**v3.0.3**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.3) ([Notes](CHANGELOG.md#v303--top-level-password-flags--enhanced-cli-flag-support)) — Top-level `-p` / `--passwords` flag support and root-level shell completions.

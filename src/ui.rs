@@ -1,6 +1,17 @@
 use chrono::Local;
 use std::io::IsTerminal;
 
+#[cfg(windows)]
+pub fn init_console() {
+    unsafe {
+        windows_sys::Win32::System::Console::SetConsoleOutputCP(65001);
+        windows_sys::Win32::System::Console::SetConsoleCP(65001);
+    }
+}
+
+#[cfg(not(windows))]
+pub fn init_console() {}
+
 pub fn use_color() -> bool {
     std::io::stdout().is_terminal() || std::env::var("FORCE_COLOR").unwrap_or_default() == "1"
 }

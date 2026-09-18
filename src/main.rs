@@ -478,6 +478,7 @@ enum Commands {
 }
 
 fn main() {
+    ui::init_console();
     let cli = Cli::parse();
 
     if cli.passwords && cli.command.is_none() {

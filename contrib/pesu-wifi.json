@@ -1,0 +1,22 @@
+{
+    "version": "3.3.0",
+    "description": "Blazing fast native Rust CLI and keepalive watchdog for PES University Wi-Fi",
+    "homepage": "https://github.com/imyash0722/pesu-wifi",
+    "license": "MIT",
+    "notes": "Run 'pesu-wifi add' to save credentials, then 'pesu-wifi start' to start the background watchdog.",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/imyash0722/pesu-wifi/releases/download/v3.3.0/pesu-wifi-v3.3.0-windows-x86_64.zip",
+            "hash": "10e0420d444e0e9f62d897f11a9d3b729ced1710e7d20c9e3814ba9c8a3b321b"
+        }
+    },
+    "bin": "pesu-wifi.exe",
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/imyash0722/pesu-wifi/releases/download/v$version/pesu-wifi-v$version-windows-x86_64.zip"
+            }
+        }
+    }
+}
