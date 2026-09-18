@@ -20,15 +20,16 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 
 ## Features
 
-- **Cross-Platform Parity (Linux & Windows):** Native support for both Linux (systemd, NetworkManager, notify-send) and Windows 10/11 (Win32 WlanAPI, WinRT toast notifications, PowerShell background manager).
+- **Cross-Platform Parity (Linux & Windows):** Native support for both Linux (systemd, notify-send) and Windows 10/11 (Win32 WlanAPI, WinRT toast notifications, Task Scheduler / pure Win32 hidden processes).
+- **Continuous 24/7 Background Daemon:** Runs as an independent, persistent background daemon across your entire session on both Linux and Windows. Operates autonomously with zero dependency on Wi-Fi manager hooks, dispatcher scripts, or root network hooks.
+- **Instant Auto-Login on Campus Connect:** Wakes up within 5s of connecting to campus Wi-Fi and logs in immediately, while resting in ultra-low overhead standby (0% CPU, zero network requests) when disconnected or on home Wi-Fi.
 - **Automated Keepalive Watchdog:** Heartbeat polling keeps your captive portal session alive indefinitely, even when browsers are closed or devices idle.
-- **Campus SSID Auto-Standby:** Automatically detects whether you are connected to a campus network. Gracefully pauses watchdog activities when at home or on non-campus Wi-Fi.
 - **Desktop Notifications:** Dispatches native system notifications (`notify-send` on Linux, Action Center Toasts on Windows) on login, session renewal, and authentication errors.
 - **Sub-Second Status Detection:** Probes the local gateway in 10–30ms to detect session states without redundant network traffic.
 - **Multi-Account Switching:** Save multiple student accounts, switch the active user instantly, or explicitly log in under a specific account.
 - **Secure Atomic Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` (Linux) or `%APPDATA%\pesu-wifi\config.json` (Windows) with strict user-only permissions.
 - **Resilient Multi-Tier Self-Healing:**
-  - **Linux:** NetworkManager renegotiation, radio power cycling, and interface recovery.
+  - **Linux:** Connection renegotiation, radio power cycling, and interface recovery.
   - **Windows:** `netsh` profile renegotiation and interface disconnect/reconnect.
 - **Shell Auto-Completions:** Native tab-completion support for Bash, Zsh, and Fish shells.
 - **Modern CLI:** Clean ANSI status cards, colored indicators, and comprehensive verification suite with automatic UTF-8 console setup on Windows.

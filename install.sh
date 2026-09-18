@@ -83,11 +83,9 @@ if [ -d "$HOME/.config/fish" ]; then
 fi
 echo "  ✔ Installed shell completions."
 
-# Install NetworkManager dispatcher script if writable
-if [ -w "/etc/NetworkManager/dispatcher.d" ]; then
-    cp "$SCRIPT_DIR/contrib/99-pesu-wifi.sh" "/etc/NetworkManager/dispatcher.d/99-pesu-wifi.sh"
-    chmod +x "/etc/NetworkManager/dispatcher.d/99-pesu-wifi.sh"
-    echo "  ✔ Installed NetworkManager dispatcher script for instant login."
+# Clean up legacy NetworkManager dispatcher script if present
+if [ -f "/etc/NetworkManager/dispatcher.d/99-pesu-wifi.sh" ] && [ -w "/etc/NetworkManager/dispatcher.d" ]; then
+    rm -f "/etc/NetworkManager/dispatcher.d/99-pesu-wifi.sh"
 fi
 
 # 3. Setup systemd user service

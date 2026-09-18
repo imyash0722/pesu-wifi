@@ -20,10 +20,11 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 **Git Tag:** [`v3.3.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.3.0)  
 
 ### v3.3.0 Overview & Major Highlights
-- **100% Feature Parity on Windows:** Windows users now have the exact same capabilities as Linux: auto-login, background watchdog daemon, multi-account switching, Wi-Fi self-healing, and real-time status reporting.
+- **Continuous 24/7 Background Daemon:** Operates independently of any Wi-Fi manager (completely eliminated NetworkManager dispatcher scripts, hooks, and root requirements). Runs persistently across your session via user systemd on Linux and Task Scheduler / pure Win32 `CREATE_NO_WINDOW` on Windows.
+- **Instant Auto-Login on Campus Connection:** Wakes up within 5s of connecting to campus Wi-Fi and authenticates immediately, while resting in ultra-low overhead standby (0% CPU, zero network requests) when disconnected or on home Wi-Fi.
+- **100% Feature Parity on Windows:** Windows users have the exact same capabilities as Linux: auto-login, continuous watchdog daemon, multi-account switching, Wi-Fi self-healing, and real-time status reporting.
 - **Native Win32 Wi-Fi Subsystem (`WlanAPI.dll`):** Direct integration with Windows Native Wifi API via `windows-sys` (`WlanOpenHandle`, `WlanEnumInterfaces`, `WlanQueryInterface`) for zero-overhead SSID detection, with robust fallback to `netsh`.
 - **Native Windows 10/11 Desktop Toast Notifications:** Integrated interactive Windows Action Center toast notifications using WinRT XML templates for successful logins, keepalive session renewals, and auth alerts.
-- **Background Daemon Management on Windows:** Implemented hidden background daemon execution (`pesu-wifi start`) and process termination (`pesu-wifi stop`) via Windows PowerShell process management.
 - **Cross-Platform Config & Secrets:** Transparent storage resolution adhering to Windows standards (`%APPDATA%\pesu-wifi\config.json`) and Unix standards (`~/.config/pesu-wifi/config.json`).
 - **Windows UTF-8 Console Rendering:** Automatic code page initialization (`SetConsoleOutputCP(65001)`) ensuring ANSI box-drawing frames and status indicators render cleanly in Windows Command Prompt and PowerShell.
 - **Windows Packaging & Installers:**

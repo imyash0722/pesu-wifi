@@ -1,7 +1,6 @@
 [Unit]
-Description=PESU WiFi Login Manager & Keepalive Watchdog Daemon
-After=network-online.target NetworkManager.service
-Wants=network-online.target NetworkManager.service
+Description=PESU WiFi Continuous Keepalive & Auto-Login Daemon
+After=network.target
 
 [Service]
 Type=simple

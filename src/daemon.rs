@@ -195,13 +195,14 @@ pub fn run_daemon() -> ! {
 
     let interval = get_keep_alive_interval();
     log(&format!(
-        "Starting keepalive watchdog for '{}' (interval: {}s)...",
+        "Starting continuous keepalive daemon for '{}' (interval: {}s)...",
         username, interval
     ));
 
     let mut unreachable_streak = 0;
     let mut consecutive_session_drops = 0;
     let mut last_standby_state: Option<String> = None;
+    let mut was_standby = true;
 
     loop {
         let interval = get_keep_alive_interval();
@@ -218,18 +219,19 @@ pub fn run_daemon() -> ! {
                 let state_str = format!("off-campus:{}", ssid);
                 if last_standby_state.as_deref() != Some(&state_str) {
                     log(&format!(
-                        "Connected to non-campus Wi-Fi '{}'. Watchdog in standby (polling in {}s)...",
-                        ssid, interval
+                        "Connected to non-campus Wi-Fi '{}'. Daemon in standby (polling every 5s)...",
+                        ssid
                     ));
                     last_standby_state = Some(state_str);
                 }
+                was_standby = true;
                 unreachable_streak = 0;
                 consecutive_session_drops = 0;
-                sleep(Duration::from_secs(interval));
+                sleep(Duration::from_secs(5));
                 continue;
             } else if last_standby_state.is_some() {
                 log(&format!(
-                    "Connected to campus Wi-Fi '{}'. Resuming active keepalive watchdog.",
+                    "Connected to campus Wi-Fi '{}'. Activating keepalive watchdog.",
                     ssid
                 ));
                 last_standby_state = None;
@@ -239,13 +241,16 @@ pub fn run_daemon() -> ! {
                 log("Wi-Fi disconnected. Waiting for connection...");
                 last_standby_state = Some("disconnected".to_string());
             }
+            was_standby = true;
             unreachable_streak = 0;
             consecutive_session_drops = 0;
-            sleep(Duration::from_secs(15));
+            sleep(Duration::from_secs(5));
             continue;
         }
 
         let current_ssid_str = current_ssid.unwrap_or_default();
+        let just_resumed = was_standby;
+        was_standby = false;
 
         // 1. Primary check: check session heartbeat directly.
         // /live is a lightweight ~35-byte XML query. If live, gateway is guaranteed reachable,
@@ -291,13 +296,13 @@ pub fn run_daemon() -> ! {
                     unreachable_streak = 4;
                 }
                 _ => {
-                    sleep(Duration::from_secs(20));
+                    sleep(Duration::from_secs(10));
                 }
             }
             continue;
         }
 
-        // 3. Portal gateway is online, but our session expired or dropped
+        // 3. Portal gateway is online, but our session expired or dropped (or we just connected)
         if unreachable_streak > 0 {
             log(&format!(
                 "✔ Connectivity restored after {} failed check(s).",
@@ -306,15 +311,23 @@ pub fn run_daemon() -> ! {
             unreachable_streak = 0;
         }
 
-        consecutive_session_drops += 1;
-        if consecutive_session_drops < 2 {
-            log("⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 5s before re-authenticating...");
-            sleep(Duration::from_secs(5));
-            continue;
+        // Only wait for jitter confirmation if we previously had an active session
+        if !just_resumed {
+            consecutive_session_drops += 1;
+            if consecutive_session_drops < 2 {
+                log("⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 5s before re-authenticating...");
+                sleep(Duration::from_secs(5));
+                continue;
+            }
         }
 
         consecutive_session_drops = 0;
-        log(&format!("Session expired for '{}'. Logging in...", username));
+        let action_msg = if just_resumed {
+            format!("Logging in to campus Wi-Fi as '{}'...", username)
+        } else {
+            format!("Session expired for '{}'. Logging in...", username)
+        };
+        log(&action_msg);
         match portal::do_login(&username, &password) {
             Ok(_) => {
                 log(&format!(
@@ -323,7 +336,7 @@ pub fn run_daemon() -> ! {
                 ));
                 notify_desktop(
                     "PESU WiFi",
-                    &format!("Session restored: Logged in as {}", username),
+                    &format!("Logged in as {}", username),
                     "normal",
                 );
                 sleep(Duration::from_secs(calculate_jittered_interval(interval)));
@@ -331,7 +344,7 @@ pub fn run_daemon() -> ! {
             Err(err) => {
                 log(&format!("✖ Login failed: {}", err));
                 notify_desktop("PESU WiFi Login Failed", &err, "critical");
-                sleep(Duration::from_secs(15));
+                sleep(Duration::from_secs(10));
             }
         }
     }
@@ -421,46 +434,33 @@ pub fn cmd_start(foreground: bool) -> i32 {
         let pid_str = daemon_pid
             .map(|p| format!(" (PID: {})", p))
             .unwrap_or_default();
-        print_ok(&format!("PESU WiFi daemon is already running{}.", pid_str));
+        print_ok(&format!("PESU WiFi continuous daemon is already running{}.", pid_str));
         return 0;
     }
 
-    print_info("Starting PESU WiFi daemon in background...");
+    print_info("Starting PESU WiFi continuous daemon in background...");
     let exe = match std::env::current_exe() {
         Ok(p) => p.to_string_lossy().to_string(),
         Err(_) => "pesu-wifi.exe".to_string(),
     };
 
-    let script = format!(
-        "Start-Process -FilePath '{}' -ArgumentList 'daemon' -WindowStyle Hidden",
-        exe.replace('\'', "''")
-    );
-    let res = Command::new("powershell")
-        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
-        .output();
+    use std::os::windows::process::CommandExt;
+    let mut cmd = Command::new(&exe);
+    cmd.arg("daemon");
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-    match res {
-        Ok(out) if out.status.success() => {
+    match cmd.spawn() {
+        Ok(_) => {
             sleep(Duration::from_millis(600));
             let (active, pid) = is_daemon_running();
             if active {
                 let pid_str = pid.map(|p| format!(" (PID: {})", p)).unwrap_or_default();
-                print_ok(&format!("PESU WiFi daemon started successfully{}.", pid_str));
+                print_ok(&format!("PESU WiFi continuous daemon started successfully{}.", pid_str));
                 0
             } else {
                 print_warn("Daemon attempted to start but may have exited.");
                 1
             }
-        }
-        Ok(out) => {
-            let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            let msg = if !err.is_empty() {
-                err
-            } else {
-                String::from_utf8_lossy(&out.stdout).trim().to_string()
-            };
-            print_err(&format!("Failed to start background process: {}", msg));
-            1
         }
         Err(e) => {
             print_err(&format!("Error starting daemon: {}", e));
