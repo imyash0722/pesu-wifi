@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.5.0 — Always-On Pure Event-Driven OS Rules (Zero Keepalive Timers & Kernel Sockets)](#v350--always-on-pure-event-driven-os-rules-zero-keepalive-timers--kernel-sockets)
+  - [Overview & Major Highlights](#v350-overview--major-highlights)
 - [v3.4.0 — Continuous 24/7 Daemon, Sleep & Idle Immunity, Wi-Fi Sleep Prevention & Win32 Away Mode](#v340--continuous-247-daemon-sleep--idle-immunity-wi-fi-sleep-prevention--win32-away-mode)
   - [Overview & Major Highlights](#v340-overview--major-highlights)
 - [v3.3.0 — Windows 10/11 Support, Win32 Native Wifi, Toast Notifications & Scoop](#v330--windows-1011-support-win32-native-wifi-toast-notifications--scoop)
@@ -13,6 +15,20 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.5.0 — Always-On Pure Event-Driven OS Rules (Zero Keepalive Timers & Kernel Sockets)
+
+**Release Date:** September 19, 2026  
+**Git Tag:** [`v3.5.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.5.0)  
+
+### v3.5.0 Overview & Major Highlights
+- **100% Pure Event-Driven OS Rules Engine:** Completely eliminated the legacy 120s/180s keepalive timer loop and periodic 5-second standby polling. The daemon blocks in OS kernel system calls, waking with **0ms latency** and consuming **0.00% CPU** until an actual network state transition occurs.
+- **Linux Kernel Netlink System Calls (`rtnetlink`):** Direct socket binding to kernel multicast groups `RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_NOTIFY` via `libc::socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE)`, receiving link UP/DOWN, carrier transitions, and DHCP lease assignments with zero polling.
+- **Windows Native Wifi Event Callbacks (`WlanRegisterNotification`):** Direct integration with `WlanAPI.dll` registering for all ACM and MSM notifications (`wlan_notification_acm_connection_complete`, `wlan_notification_msm_roaming_end`, `wlan_notification_acm_disconnected`), piped over a thread-safe non-blocking `SyncSender` channel.
+- **AP Roaming & BSSID Handover Verification:** Continuously queries and compares hardware BSSID (`nmcli` active BSSID on Linux, `WlanQueryInterface` / `dot11Bssid` on Windows). On physical AP handover across campus blocks/classrooms, proactively verifies gateway reachability and re-authenticates if needed.
+- **Enhanced Standalone Release Installers:** `install.sh` and `install.ps1` automatically detect local precompiled binaries inside downloaded release archives, installing in <100ms without requiring Rust, Cargo, or network downloads.
 
 ---
 

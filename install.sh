@@ -12,38 +12,44 @@ echo " PESU WiFi Rust CLI & Daemon Setup"
 echo "=========================================="
 echo ""
 
-# 1. Ensure Rust toolchain
-echo "[1/4] Checking Rust toolchain..."
-if ! command -v cargo &>/dev/null; then
-    echo "Cargo is not installed. Installing Rust via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
+if [ -f "$SCRIPT_DIR/pesu-wifi" ] && [ -x "$SCRIPT_DIR/pesu-wifi" ] && [ ! -f "$SCRIPT_DIR/Cargo.toml" ]; then
+    echo "[1/4] Using pre-compiled release binary..."
+    BUILD_BIN="$SCRIPT_DIR/pesu-wifi"
+    echo "  ✔ Found pre-compiled release binary: $BUILD_BIN"
 else
-    echo "  ✔ Cargo is installed: $(cargo --version)"
-fi
-
-# 2. Build release binary
-echo "[2/4] Building high-performance release binary..."
-cd "$SCRIPT_DIR"
-
-# Protect against metadata corruption on non-POSIX/exFAT filesystems
-if [ -z "$CARGO_TARGET_DIR" ]; then
-    TARGET_FS=$(df -T "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $2}')
-    if [[ "$TARGET_FS" =~ ^(exfat|vfat|msdos|cifs|smb|ntfs|fuseblk)$ ]]; then
-        export CARGO_TARGET_DIR="$HOME/.cache/cargo-target/pesu-wifi"
-        mkdir -p "$CARGO_TARGET_DIR"
+    # 1. Ensure Rust toolchain
+    echo "[1/4] Checking Rust toolchain..."
+    if ! command -v cargo &>/dev/null; then
+        echo "Cargo is not installed. Installing Rust via rustup..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+    else
+        echo "  ✔ Cargo is installed: $(cargo --version)"
     fi
-fi
 
-cargo build --release
+    # 2. Build release binary
+    echo "[2/4] Building high-performance release binary..."
+    cd "$SCRIPT_DIR"
 
-# Locate built binary
-if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/pesu-wifi" ]; then
-    BUILD_BIN="$CARGO_TARGET_DIR/release/pesu-wifi"
-elif [ -f "$SCRIPT_DIR/target/release/pesu-wifi" ]; then
-    BUILD_BIN="$SCRIPT_DIR/target/release/pesu-wifi"
-else
-    BUILD_BIN=$(find "${CARGO_TARGET_DIR:-$HOME/.cache/cargo-target}" "$SCRIPT_DIR/target" -name "pesu-wifi" -type f -perm -111 2>/dev/null | grep -E 'release/pesu-wifi$' | head -n 1)
+    # Protect against metadata corruption on non-POSIX/exFAT filesystems
+    if [ -z "$CARGO_TARGET_DIR" ]; then
+        TARGET_FS=$(df -T "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $2}')
+        if [[ "$TARGET_FS" =~ ^(exfat|vfat|msdos|cifs|smb|ntfs|fuseblk)$ ]]; then
+            export CARGO_TARGET_DIR="$HOME/.cache/cargo-target/pesu-wifi"
+            mkdir -p "$CARGO_TARGET_DIR"
+        fi
+    fi
+
+    cargo build --release
+
+    # Locate built binary
+    if [ -n "$CARGO_TARGET_DIR" ] && [ -f "$CARGO_TARGET_DIR/release/pesu-wifi" ]; then
+        BUILD_BIN="$CARGO_TARGET_DIR/release/pesu-wifi"
+    elif [ -f "$SCRIPT_DIR/target/release/pesu-wifi" ]; then
+        BUILD_BIN="$SCRIPT_DIR/target/release/pesu-wifi"
+    else
+        BUILD_BIN=$(find "${CARGO_TARGET_DIR:-$HOME/.cache/cargo-target}" "$SCRIPT_DIR/target" -name "pesu-wifi" -type f -perm -111 2>/dev/null | grep -E 'release/pesu-wifi$' | head -n 1)
+    fi
 fi
 
 if [ -z "$BUILD_BIN" ] || [ ! -f "$BUILD_BIN" ]; then

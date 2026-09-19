@@ -31,11 +31,20 @@ if (-not (Test-Path $InstallDir)) {
 
 $Installed = $false
 
-# 1. Install from Source if requested or in repo
+# 1. Use local precompiled binary if present alongside script (e.g. unzipped release)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $IsRepo = Test-Path (Join-Path $ScriptDir "Cargo.toml")
+$LocalExe = Join-Path $ScriptDir "pesu-wifi.exe"
 
-if ($FromSource -or ($IsRepo -and (Get-Command cargo -ErrorAction SilentlyContinue))) {
+if (-not $FromSource -and (Test-Path $LocalExe) -and -not $IsRepo) {
+    Write-Host "[1/4] Installing from local precompiled binary..." -ForegroundColor Yellow
+    Copy-Item -Path $LocalExe -Destination $ExePath -Force
+    $Installed = $true
+    Write-Host "  ✔ Installed pesu-wifi.exe from local release package" -ForegroundColor Green
+}
+
+# 2. Install from Source if requested or in repo
+if (-not $Installed -and ($FromSource -or ($IsRepo -and (Get-Command cargo -ErrorAction SilentlyContinue)))) {
     Write-Host "[1/4] Building from source with Cargo..." -ForegroundColor Yellow
     Push-Location $ScriptDir
     try {
