@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.5.1 — Fix Keepalive Heartbeat Watchdog in Event-Driven Engine](#v351--fix-keepalive-heartbeat-watchdog-in-event-driven-engine)
+  - [Overview & Major Highlights](#v351-overview--major-highlights)
 - [v3.5.0 — Always-On Pure Event-Driven OS Rules (Zero Keepalive Timers & Kernel Sockets)](#v350--always-on-pure-event-driven-os-rules-zero-keepalive-timers--kernel-sockets)
   - [Overview & Major Highlights](#v350-overview--major-highlights)
 - [v3.4.0 — Continuous 24/7 Daemon, Sleep & Idle Immunity, Wi-Fi Sleep Prevention & Win32 Away Mode](#v340--continuous-247-daemon-sleep--idle-immunity-wi-fi-sleep-prevention--win32-away-mode)
@@ -15,6 +17,20 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.5.1 — Fix Keepalive Heartbeat Watchdog in Event-Driven Engine
+ 
+**Release Date:** September 19, 2026  
+**Git Tag:** [`v3.5.1`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.5.1)  
+
+### v3.5.1 Overview & Major Highlights
+- **Fixed Disconnections Caused by Missing Keepalive Heartbeats:** Solved the regression where the captive portal gateway dropped active sessions due to portal server inactivity timeout.
+- **Hybrid Event-Driven Keepalive Architecture:** Netlink route sockets (`libc::poll`) and Windows Wlan callbacks (`rx.recv_timeout`) now wait with a timeout equal to the configured keepalive interval (default 180s with anti-storm jitter).
+  - **Instant 0ms Wakeup:** If any OS network event occurs (link bounce, carrier switch, IP change, roaming), the kernel system call returns immediately (0ms).
+  - **Periodic Keepalive Guarantee:** If no network events occur, the timeout fires at 180s, sending the `/live` heartbeat to reset the gateway's inactivity timer and re-authenticating if expired.
+- **Unit Test Coverage:** Added unit tests verifying `OsNetworkListener::wait_event` timeout behavior.
 
 ---
 

@@ -57,12 +57,12 @@ fn cmd_status() {
             "{}{}{}",
             color(GREEN, "Active"),
             color(DIM, &pid_str),
-            color(DIM, " [Event-Driven OS Rules]")
+            color(DIM, " [Event-Driven Keepalive]")
         )
     } else {
         color(
             DIM,
-            "Inactive [Event-Driven OS Rules]",
+            "Inactive [Event-Driven Keepalive]",
         )
     };
 

@@ -10,10 +10,8 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
-#[allow(dead_code)]
 pub const KEEP_ALIVE_INTERVAL: u64 = 180;
 
-#[allow(dead_code)]
 pub fn get_keep_alive_interval() -> u64 {
     if let Ok(env_interval) = std::env::var("PESU_KEEPALIVE_INTERVAL") {
         if let Ok(v) = env_interval.parse() {
@@ -29,11 +27,16 @@ pub fn get_keep_alive_interval() -> u64 {
     KEEP_ALIVE_INTERVAL
 }
 
-#[allow(dead_code)]
 pub fn calculate_jittered_interval(base_interval: u64) -> u64 {
     // ±5s anti-storm jitter using millisecond timestamp modulo
     let jitter = (portal::get_timestamp() % 11) as i64 - 5;
     (base_interval as i64 + jitter).max(10) as u64
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OsEvent {
+    NetworkChange(String),
+    Timeout,
 }
 
 pub fn get_lock_file_path() -> std::path::PathBuf {
@@ -313,14 +316,38 @@ impl OsNetworkListener {
         Ok(Self { fd })
     }
 
-    pub fn wait_event(&self) -> Result<String, String> {
+    pub fn wait_event(&self, timeout: Option<Duration>) -> Result<OsEvent, String> {
+        let mut pfd = libc::pollfd {
+            fd: self.fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let timeout_ms = match timeout {
+            Some(d) => d.as_millis().min(i32::MAX as u128) as libc::c_int,
+            None => -1,
+        };
+
+        let ret = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+        if ret < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                return Ok(OsEvent::Timeout);
+            }
+            return Err(format!("Netlink poll error: {}", err));
+        } else if ret == 0 {
+            return Ok(OsEvent::Timeout);
+        }
+
         let mut buf = [0u8; 4096];
-        // Blocking kernel system call: thread sleeps with 0% CPU until Linux kernel emits network event
         let n = unsafe {
             libc::recv(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
         };
         if n < 0 {
-            return Err(format!("Netlink recv error: {}", std::io::Error::last_os_error()));
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::WouldBlock {
+                return Ok(OsEvent::Timeout);
+            }
+            return Err(format!("Netlink recv error: {}", err));
         }
 
         // Debounce: wait 250ms and drain any buffered burst messages from the same state transition
@@ -334,7 +361,7 @@ impl OsNetworkListener {
             )
         } > 0 {}
 
-        Ok("Netlink (rtnetlink link/addr event)".to_string())
+        Ok(OsEvent::NetworkChange("Netlink (rtnetlink link/addr event)".to_string()))
     }
 }
 
@@ -419,14 +446,28 @@ impl OsNetworkListener {
         }
     }
 
-    pub fn wait_event(&self) -> Result<String, String> {
-        let event = self.rx.recv().map_err(|e| e.to_string())?;
+    pub fn wait_event(&self, timeout: Option<Duration>) -> Result<OsEvent, String> {
+        let res = match timeout {
+            Some(d) => match self.rx.recv_timeout(d) {
+                Ok(ev) => Ok(OsEvent::NetworkChange(ev)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Ok(OsEvent::Timeout),
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    Err("Wlan notification channel disconnected".to_string())
+                }
+            },
+            None => match self.rx.recv() {
+                Ok(ev) => Ok(OsEvent::NetworkChange(ev)),
+                Err(e) => Err(e.to_string()),
+            },
+        };
 
-        // Debounce burst notifications
-        sleep(Duration::from_millis(300));
-        while self.rx.try_recv().is_ok() {}
+        if let Ok(OsEvent::NetworkChange(_)) = res {
+            // Debounce burst notifications
+            sleep(Duration::from_millis(300));
+            while self.rx.try_recv().is_ok() {}
+        }
 
-        Ok(event)
+        res
     }
 }
 
@@ -467,17 +508,22 @@ pub fn run_daemon() -> ! {
         }
     };
 
+    let interval = get_keep_alive_interval();
+
     #[cfg(unix)]
     let os_engine = "Linux Netlink (rtnetlink RTMGRP_LINK | RTMGRP_IPV4_IFADDR)";
     #[cfg(windows)]
     let os_engine = "Win32 WlanRegisterNotification (ACM/MSM events)";
 
     log(&format!(
-        "Starting Always-On Pure Event-Driven Daemon for '{}'...",
+        "Starting Always-On Event-Driven Keepalive Watchdog for '{}'...",
         username
     ));
     log(&format!("⚡ OS System Call Engine: {}", os_engine));
-    log("   Architecture: Zero periodic keepalive/polling. Daemon sleeps in kernel wait until network state transition.");
+    log(&format!(
+        "   Architecture: Reactive OS kernel notifications (0ms event wakeup) + {}s keepalive heartbeat (anti-disconnect).",
+        interval
+    ));
 
     let listener = OsNetworkListener::new().unwrap_or_else(|err| {
         log(&format!("⚠ Failed to initialize OS network listener: {}. Exiting.", err));
@@ -488,16 +534,24 @@ pub fn run_daemon() -> ! {
     let mut last_standby_state: Option<String> = None;
     let mut inhibitor = SleepInhibitor::new();
     let mut is_first_run = true;
+    let mut next_wait: Option<Duration> = None;
+    let mut unreachable_streak = 0;
+    let mut consecutive_session_drops = 0;
+    let mut just_connected = true;
 
     loop {
-        // Step 1: Wait for OS Network Event via pure system calls (or evaluate immediately on startup)
+        // Step 1: Wait for OS Network Event or Keepalive Watchdog Timeout
         if !is_first_run {
-            match listener.wait_event() {
-                Ok(ev) => {
-                    log(&format!("⚡ OS Network Event received: {} [evaluating OS rules...]", ev));
+            match listener.wait_event(next_wait) {
+                Ok(OsEvent::NetworkChange(ev)) => {
+                    log(&format!("⚡ OS Network Event: {} [evaluating immediately]", ev));
+                    just_connected = true;
+                }
+                Ok(OsEvent::Timeout) => {
+                    // Keepalive watchdog interval elapsed (or standby poll timeout)
                 }
                 Err(e) => {
-                    log(&format!("⚠ OS event listener error: {}. Retrying wait in 5s...", e));
+                    log(&format!("⚠ OS event listener error: {}. Retrying in 5s...", e));
                     sleep(Duration::from_secs(5));
                     continue;
                 }
@@ -517,19 +571,23 @@ pub fn run_daemon() -> ! {
         let current_bssid = wifi::get_current_wifi_bssid();
 
         // Step 3: Evaluate OS Wi-Fi System Call Rules
-        // Rule Layer A: Non-campus SSID or Disconnected Interface
+        // Non-campus SSID or Disconnected Interface
         if let Some(ref ssid) = current_ssid {
             if !wifi::is_campus_ssid(ssid) {
                 let state_str = format!("off-campus:{}", ssid);
                 if last_standby_state.as_deref() != Some(&state_str) {
                     log(&format!(
-                        "Connected to non-campus Wi-Fi '{}'. Daemon in pure OS event standby (0% CPU).",
+                        "Connected to non-campus Wi-Fi '{}'. Daemon in standby.",
                         ssid
                     ));
                     last_standby_state = Some(state_str);
                 }
                 inhibitor.deactivate();
                 last_bssid = None;
+                unreachable_streak = 0;
+                consecutive_session_drops = 0;
+                just_connected = true;
+                next_wait = Some(Duration::from_secs(10));
                 continue;
             }
         } else {
@@ -539,10 +597,14 @@ pub fn run_daemon() -> ! {
             }
             inhibitor.deactivate();
             last_bssid = None;
+            unreachable_streak = 0;
+            consecutive_session_drops = 0;
+            just_connected = true;
+            next_wait = Some(Duration::from_secs(10));
             continue;
         }
 
-        // Rule Layer B: Campus Network Confirmed
+        // Campus Network Confirmed
         let ssid = current_ssid.unwrap();
         last_standby_state = None;
 
@@ -558,50 +620,110 @@ pub fn run_daemon() -> ! {
                         "⚡ AP Roaming detected: {} ➔ {}. Verifying gateway link...",
                         prev, bssid
                     ));
+                    just_connected = true;
                 }
             }
             last_bssid = Some(bssid.clone());
         }
 
-        // Rule 3: Gateway & Session Status Check
+        let interval = get_keep_alive_interval();
+
+        // Rule 3: Session Keepalive Watchdog & Auto-Authentication
+        // Primary check: Check /live heartbeat directly.
+        // /live is a lightweight ~35-byte XML query that keeps the captive portal session alive
+        // and verifies that our IP is still authorized by the gateway.
         if portal::check_live(Some(&username), false) {
+            if unreachable_streak > 0 {
+                log(&format!(
+                    "✔ Connectivity restored after {} failed check(s).",
+                    unreachable_streak
+                ));
+                unreachable_streak = 0;
+            }
+            consecutive_session_drops = 0;
+            just_connected = false;
+            let jittered = calculate_jittered_interval(interval);
             log(&format!(
-                "✔ Campus Wi-Fi link active ('{}'). Authenticated as '{}' [Event-Driven OS Rules active].",
-                ssid, username
+                "✔ Keepalive heartbeat OK ({}). Session active. Next check in {}s.",
+                username, jittered
             ));
+            next_wait = Some(Duration::from_secs(jittered));
             continue;
         }
 
-        // If not live, check if portal gateway is online
+        // Session check failed: verify whether the portal gateway itself is reachable
         if !portal::is_portal_online() {
+            unreachable_streak += 1;
+            consecutive_session_drops = 0;
             log(&format!(
-                "⚠ Portal gateway unreachable on '{}'. Engaging L1 self-healing...",
-                ssid
+                "⚠ Portal gateway unreachable on '{}' (streak: {}).",
+                ssid, unreachable_streak
             ));
-            wifi::heal_network(1);
+
+            match unreachable_streak {
+                3 => {
+                    wifi::heal_network(1);
+                    next_wait = Some(Duration::from_secs(10));
+                }
+                5 | 6 => {
+                    wifi::heal_network(2);
+                    next_wait = Some(Duration::from_secs(10));
+                }
+                s if s >= 9 => {
+                    wifi::heal_network(3);
+                    next_wait = Some(Duration::from_secs(15));
+                    unreachable_streak = 4;
+                }
+                _ => {
+                    next_wait = Some(Duration::from_secs(5));
+                }
+            }
             continue;
         }
 
-        // Gateway is online but session is signed out or redirected -> Cyberoam auto-auth
+        // Gateway is online, but session expired or dropped (or newly connected)
+        if unreachable_streak > 0 {
+            log(&format!(
+                "✔ Connectivity restored after {} failed check(s).",
+                unreachable_streak
+            ));
+            unreachable_streak = 0;
+        }
+
+        // Only wait for jitter confirmation if we had an established session and didn't just connect/roam
+        if !just_connected {
+            consecutive_session_drops += 1;
+            if consecutive_session_drops < 2 {
+                log("⚠ Keepalive missed 1 check (possible Wi-Fi jitter). Verifying in 3s before re-authenticating...");
+                next_wait = Some(Duration::from_secs(3));
+                continue;
+            }
+        }
+
+        consecutive_session_drops = 0;
+        just_connected = false;
         log(&format!(
-            "⚡ Captive portal detected on '{}'. Authenticating as '{}'...",
-            ssid, username
+            "⚡ Keepalive watchdog: session expired. Authenticating as '{}'...",
+            username
         ));
         match portal::do_login(&username, &password) {
             Ok(_) => {
+                let jittered = calculate_jittered_interval(interval);
                 log(&format!(
-                    "✔ Authenticated successfully as '{}' [Event-Driven OS Rules active].",
-                    username
+                    "✔ Authenticated successfully as '{}'. Next keepalive check in {}s.",
+                    username, jittered
                 ));
                 notify_desktop(
                     "PESU WiFi",
                     &format!("Logged in as {}", username),
                     "normal",
                 );
+                next_wait = Some(Duration::from_secs(jittered));
             }
             Err(err) => {
                 log(&format!("✖ Authentication failed: {}", err));
                 notify_desktop("PESU WiFi Login Failed", &err, "critical");
+                next_wait = Some(Duration::from_secs(10));
             }
         }
     }
@@ -805,6 +927,16 @@ mod tests {
     fn test_os_network_listener_creation() {
         let listener = OsNetworkListener::new();
         assert!(listener.is_ok());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_os_network_listener_wait_event_timeout() {
+        let listener = OsNetworkListener::new().expect("Failed to create listener");
+        let start = std::time::Instant::now();
+        let res = listener.wait_event(Some(Duration::from_millis(50)));
+        assert_eq!(res, Ok(OsEvent::Timeout));
+        assert!(start.elapsed() >= Duration::from_millis(45));
     }
 }
 
