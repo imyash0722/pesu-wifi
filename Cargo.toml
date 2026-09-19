@@ -26,6 +26,9 @@ windows-sys = { version = "0.59", features = [
     "Win32_NetworkManagement_WiFi",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [profile.release]
 opt-level = 3
 lto = true

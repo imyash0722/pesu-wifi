@@ -24,7 +24,6 @@ fn cmd_status() {
     };
     let (daemon_active, daemon_pid) = daemon::is_daemon_running();
     let wifi_ssid = wifi::get_active_wifi_ssid();
-    let interval = daemon::get_keep_alive_interval();
 
     let gw_val = format!(
         "{} {}",
@@ -58,12 +57,12 @@ fn cmd_status() {
             "{}{}{}",
             color(GREEN, "Active"),
             color(DIM, &pid_str),
-            color(DIM, &format!(" [polling: {}s]", interval))
+            color(DIM, " [Event-Driven OS Rules]")
         )
     } else {
         color(
             DIM,
-            &format!("Inactive [polling: {}s]", interval),
+            "Inactive [Event-Driven OS Rules]",
         )
     };
 

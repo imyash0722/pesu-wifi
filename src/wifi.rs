@@ -26,12 +26,39 @@ pub fn get_current_wifi_ssid() -> Option<String> {
     None
 }
 
+#[cfg(unix)]
+pub fn get_current_wifi_bssid() -> Option<String> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "active,bssid", "dev", "wifi"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        if line.starts_with("yes:") {
+            let bssid = line.trim_start_matches("yes:").replace('\\', "");
+            if !bssid.trim().is_empty() {
+                return Some(bssid.trim().to_uppercase());
+            }
+        }
+    }
+    None
+}
+
 #[cfg(windows)]
 pub fn get_current_wifi_ssid() -> Option<String> {
     if let Some(ssid) = get_current_wifi_ssid_wlanapi() {
         return Some(ssid);
     }
     get_current_wifi_ssid_netsh()
+}
+
+#[cfg(windows)]
+pub fn get_current_wifi_bssid() -> Option<String> {
+    if let Some(bssid) = get_current_wifi_bssid_wlanapi() {
+        return Some(bssid);
+    }
+    get_current_wifi_bssid_netsh()
 }
 
 #[cfg(windows)]
@@ -122,6 +149,86 @@ fn get_current_wifi_ssid_netsh() -> Option<String> {
     } else {
         None
     }
+}
+
+#[cfg(windows)]
+fn get_current_wifi_bssid_wlanapi() -> Option<String> {
+    use windows_sys::Win32::NetworkManagement::WiFi::*;
+    unsafe {
+        let mut client_version = 0;
+        let mut handle: *mut std::ffi::c_void = std::ptr::null_mut();
+        let res = WlanOpenHandle(2, std::ptr::null(), &mut client_version, &mut handle);
+        if res != 0 || handle.is_null() {
+            return None;
+        }
+
+        let mut interface_list = std::ptr::null_mut();
+        let res = WlanEnumInterfaces(handle, std::ptr::null_mut(), &mut interface_list);
+        if res != 0 || interface_list.is_null() {
+            WlanCloseHandle(handle, std::ptr::null_mut());
+            return None;
+        }
+
+        let mut active_bssid = None;
+        let num_items = (*interface_list).dwNumberOfItems;
+        for i in 0..num_items {
+            let info = (*interface_list).InterfaceInfo[i as usize];
+            if info.isState == wlan_interface_state_connected {
+                let mut data_size = 0;
+                let mut data_ptr = std::ptr::null_mut();
+                let mut opcode_value_type = 0;
+                let res = WlanQueryInterface(
+                    handle,
+                    &info.InterfaceGuid,
+                    wlan_intf_opcode_current_connection,
+                    std::ptr::null_mut(),
+                    &mut data_size,
+                    &mut data_ptr,
+                    &mut opcode_value_type,
+                );
+                if res == 0 && !data_ptr.is_null() {
+                    let conn = data_ptr as *const WLAN_CONNECTION_ATTRIBUTES;
+                    let b = (*conn).wlanAssociationAttributes.dot11Bssid;
+                    let bssid_str = format!(
+                        "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                        b[0], b[1], b[2], b[3], b[4], b[5]
+                    );
+                    if bssid_str != "00:00:00:00:00:00" {
+                        active_bssid = Some(bssid_str);
+                    }
+                    WlanFreeMemory(data_ptr);
+                }
+                if active_bssid.is_some() {
+                    break;
+                }
+            }
+        }
+
+        WlanFreeMemory(interface_list as *mut _);
+        WlanCloseHandle(handle, std::ptr::null_mut());
+        active_bssid
+    }
+}
+
+#[cfg(windows)]
+fn get_current_wifi_bssid_netsh() -> Option<String> {
+    let output = Command::new("netsh")
+        .args(["wlan", "show", "interfaces"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some((k, v)) = line.split_once(':') {
+            let k = k.trim().to_lowercase();
+            let v = v.trim().to_string();
+            if k == "bssid" && !v.is_empty() {
+                return Some(v.to_uppercase());
+            }
+        }
+    }
+    None
 }
 
 pub fn is_campus_ssid(ssid: &str) -> bool {
