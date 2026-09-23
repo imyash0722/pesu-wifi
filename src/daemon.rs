@@ -609,7 +609,9 @@ pub fn run_daemon() -> ! {
         last_standby_state = None;
 
         // Rule 1: Power-Saving & Sleep Immunity System Calls
-        wifi::disable_wifi_powersave(&ssid);
+        if just_connected {
+            wifi::disable_wifi_powersave(&ssid);
+        }
         inhibitor.activate();
 
         // Rule 2: AP Roaming & BSSID Handover Verification

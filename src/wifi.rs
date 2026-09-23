@@ -363,31 +363,31 @@ pub fn heal_network(tier: u8) {
 
 #[cfg(unix)]
 pub fn disable_wifi_powersave(ssid: &str) {
-    // 1. Disable 802.11 power saving on this campus connection (powersave = 2)
-    let _ = Command::new("nmcli")
-        .args(["connection", "modify", ssid, "802-11-wireless.powersave", "2"])
-        .output();
-
-    // 2. Disable power save on all active wireless connections
-    if let Ok(out) = Command::new("nmcli")
-        .args(["-t", "-f", "UUID,TYPE", "con", "show", "--active"])
+    // 1. Check if powersave is already disabled on this connection
+    let needs_powersave = Command::new("nmcli")
+        .args(["-f", "802-11-wireless.powersave", "connection", "show", ssid])
         .output()
-    {
-        let txt = String::from_utf8_lossy(&out.stdout);
-        for line in txt.lines() {
-            let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() >= 2 && parts[1].contains("802-11-wireless") {
-                let _ = Command::new("nmcli")
-                    .args(["connection", "modify", parts[0], "802-11-wireless.powersave", "2"])
-                    .output();
-            }
-        }
+        .map(|o| !String::from_utf8_lossy(&o.stdout).contains("2 (disable)"))
+        .unwrap_or(true);
+
+    if needs_powersave {
+        let _ = Command::new("nmcli")
+            .args(["connection", "modify", ssid, "802-11-wireless.powersave", "2"])
+            .output();
     }
 
-    // 3. Ensure Wi-Fi radio is fully on
-    let _ = Command::new("nmcli")
-        .args(["radio", "wifi", "on"])
-        .output();
+    // 2. Ensure Wi-Fi radio is on only if currently disabled
+    let radio_disabled = Command::new("nmcli")
+        .args(["radio", "wifi"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() != "enabled")
+        .unwrap_or(false);
+
+    if radio_disabled {
+        let _ = Command::new("nmcli")
+            .args(["radio", "wifi", "on"])
+            .output();
+    }
 }
 
 #[cfg(windows)]
