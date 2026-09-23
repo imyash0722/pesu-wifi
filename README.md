@@ -21,8 +21,8 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 ## Features
 
 - **Cross-Platform Parity (Linux & Windows):** Native support for both Linux (systemd, notify-send) and Windows 10/11 (Win32 WlanAPI, WinRT toast notifications, Task Scheduler / pure Win32 hidden processes).
-- **Always-On Pure Event-Driven OS Rules (Zero Polling, Zero Timers):**
-  - **100% Kernel Event-Driven:** Completely eliminated the legacy 120s/180s keepalive timer loop and periodic polling. The daemon blocks in OS kernel system calls (`rtnetlink` sockets on Linux, `WlanRegisterNotification` on Windows), waking with **0ms latency** and consuming **0.00% CPU** until an actual network event occurs.
+- **Always-On Event-Driven Keepalive Watchdog:**
+  - **Hybrid Kernel Event & Heartbeat Engine:** Combines instant OS kernel notifications (`rtnetlink` route sockets on Linux, `WlanRegisterNotification` on Windows) with an active 180s keepalive watchdog (`/live` heartbeat). Wakes with **0ms latency** on any network state transition, while maintaining periodic gateway heartbeats to prevent captive portal server inactivity disconnections.
   - **AP Roaming & BSSID Handover Verification:** Automatically detects physical Access Point transitions (BSSID changes) when walking across campus buildings/blocks and verifies link stability instantly.
   - **Instant Cyberoam Auto-Authentication (< 150ms):** Automatically authenticates upon campus Wi-Fi association or captive portal redirects.
   - **Power-Saving & Sleep Immunity:**
@@ -56,7 +56,7 @@ scoop install https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/cont
 ```
 
 #### Option 3: Pre-compiled Standalone Executable
-Download `pesu-wifi-v3.5.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
+Download `pesu-wifi-v3.5.1-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
 
 ---
 
@@ -65,14 +65,14 @@ Download `pesu-wifi-v3.5.0-windows-x86_64.zip` from [GitHub Releases](https://gi
 #### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
 
 ```bash
-curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.5.0/pesu-wifi-v3.5.0-linux-x86_64.tar.gz | tar -xz
-cd pesu-wifi-v3.5.0-linux-x86_64 && ./install.sh
+curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.5.1/pesu-wifi-v3.5.1-linux-x86_64.tar.gz | tar -xz
+cd pesu-wifi-v3.5.1-linux-x86_64 && ./install.sh
 ```
 
 #### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
 
 ```bash
-sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.5.0/pesu-wifi-3.5.0-x86_64.pkg.tar.zst
+sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.5.1/pesu-wifi-3.5.1-x86_64.pkg.tar.zst
 ```
 
 #### Option C: Build from Source (Requires Cargo / Rust)
