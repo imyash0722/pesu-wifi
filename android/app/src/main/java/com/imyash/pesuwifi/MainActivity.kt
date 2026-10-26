@@ -25,9 +25,12 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.collectAsState
 import com.imyash.pesuwifi.ui.AccountsScreen
+import com.imyash.pesuwifi.ui.GuidesScreen
 import com.imyash.pesuwifi.ui.HomeScreen
 import com.imyash.pesuwifi.ui.LogsScreen
+import com.imyash.pesuwifi.ui.components.UpdateDialog
 import com.imyash.pesuwifi.ui.theme.PesuWifiTheme
 import com.imyash.pesuwifi.util.PermissionManager
 import com.imyash.pesuwifi.viewmodel.PortalViewModel
@@ -35,7 +38,8 @@ import com.imyash.pesuwifi.viewmodel.PortalViewModel
 enum class Screen {
     HOME,
     ACCOUNTS,
-    LOGS
+    LOGS,
+    GUIDES
 }
 
 class MainActivity : ComponentActivity() {
@@ -52,6 +56,7 @@ class MainActivity : ComponentActivity() {
         com.imyash.pesuwifi.service.SystemRuleManager.registerAllRules(this)
 
         promptRuntimePermissions()
+        viewModel.checkForUpdates(force = false)
 
         setContent {
             PesuWifiTheme {
@@ -60,36 +65,52 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var currentScreen by rememberSaveable { mutableStateOf(Screen.HOME) }
+                    val updateState by viewModel.updateState.collectAsState()
 
-                    // Intercept back navigation when on secondary screens (ACCOUNTS, LOGS)
+                    // Intercept back navigation when on secondary screens (ACCOUNTS, LOGS, GUIDES)
                     // When on HOME, this handler is disabled so the system back cleanly exits/minimizes the app
                     BackHandler(enabled = currentScreen != Screen.HOME) {
                         currentScreen = Screen.HOME
                     }
 
-                    AnimatedContent(
-                        targetState = currentScreen,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() },
-                        label = "screen_transition"
-                    ) { screen ->
-                        when (screen) {
-                            Screen.HOME -> HomeScreen(
-                                viewModel = viewModel,
-                                onNavigateToAccounts = { currentScreen = Screen.ACCOUNTS },
-                                onNavigateToLogs = { currentScreen = Screen.LOGS },
-                                onRequestNotification = { requestNotificationPermission() },
-                                onRequestBatteryOptimization = { requestBatteryOptimization() },
-                                onRequestExactAlarm = { requestExactAlarm() },
-                                onRequestAutostart = { requestAutostart() }
-                            )
-                            Screen.ACCOUNTS -> AccountsScreen(
-                                viewModel = viewModel,
-                                onNavigateBack = { currentScreen = Screen.HOME }
-                            )
-                            Screen.LOGS -> LogsScreen(
-                                onNavigateBack = { currentScreen = Screen.HOME }
-                            )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() },
+                            label = "screen_transition"
+                        ) { screen ->
+                            when (screen) {
+                                Screen.HOME -> HomeScreen(
+                                    viewModel = viewModel,
+                                    onNavigateToAccounts = { currentScreen = Screen.ACCOUNTS },
+                                    onNavigateToLogs = { currentScreen = Screen.LOGS },
+                                    onNavigateToGuides = { currentScreen = Screen.GUIDES },
+                                    onRequestNotification = { requestNotificationPermission() },
+                                    onRequestBatteryOptimization = { requestBatteryOptimization() },
+                                    onRequestExactAlarm = { requestExactAlarm() },
+                                    onRequestAutostart = { requestAutostart() }
+                                )
+                                Screen.ACCOUNTS -> AccountsScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = { currentScreen = Screen.HOME }
+                                )
+                                Screen.LOGS -> LogsScreen(
+                                    onNavigateBack = { currentScreen = Screen.HOME }
+                                )
+                                Screen.GUIDES -> GuidesScreen(
+                                    onNavigateBack = { currentScreen = Screen.HOME },
+                                    onCheckForUpdates = { viewModel.checkForUpdates(force = true) }
+                                )
+                            }
                         }
+
+                        // In-app updater dialog overlay
+                        UpdateDialog(
+                            updateState = updateState,
+                            onDownloadClick = { info -> viewModel.downloadUpdate(info) },
+                            onInstallClick = { file -> viewModel.installUpdate(file) },
+                            onDismiss = { viewModel.dismissUpdate() }
+                        )
                     }
                 }
             }

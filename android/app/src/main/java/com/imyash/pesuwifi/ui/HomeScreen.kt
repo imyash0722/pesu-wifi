@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -30,8 +32,10 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
@@ -74,6 +78,7 @@ import com.imyash.pesuwifi.ui.theme.StatusAmber
 import com.imyash.pesuwifi.ui.theme.StatusGreen
 import com.imyash.pesuwifi.ui.theme.StatusRed
 import com.imyash.pesuwifi.util.PermissionManager
+import com.imyash.pesuwifi.util.UpdateState
 import com.imyash.pesuwifi.viewmodel.PortalViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,12 +87,14 @@ fun HomeScreen(
     viewModel: PortalViewModel,
     onNavigateToAccounts: () -> Unit,
     onNavigateToLogs: () -> Unit = {},
+    onNavigateToGuides: () -> Unit = {},
     onRequestNotification: () -> Unit = {},
     onRequestBatteryOptimization: () -> Unit = {},
     onRequestExactAlarm: () -> Unit = {},
     onRequestAutostart: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -176,6 +183,18 @@ fun HomeScreen(
                     )
                 },
                 actions = {
+                    if (updateState is UpdateState.Available) {
+                        IconButton(onClick = { viewModel.downloadUpdate((updateState as UpdateState.Available).updateInfo) }) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = "Update Available",
+                                tint = StatusGreen
+                            )
+                        }
+                    }
+                    IconButton(onClick = onNavigateToGuides) {
+                        Icon(imageVector = Icons.Default.MenuBook, contentDescription = "Guides & Help")
+                    }
                     IconButton(
                         onClick = { viewModel.refresh() },
                         enabled = !state.isLoading
@@ -208,7 +227,65 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(32.dp))
+            if (updateState is UpdateState.Available) {
+                val info = (updateState as UpdateState.Available).updateInfo
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { viewModel.downloadUpdate(info) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = StatusGreen.copy(alpha = 0.12f)
+                    ),
+                    border = BorderStroke(1.dp, StatusGreen.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(StatusGreen.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = StatusGreen,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "New Version: v${info.versionName}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = StatusGreen
+                            )
+                            Text(
+                                text = "Tap to update app in 1-click",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = { viewModel.downloadUpdate(info) },
+                            colors = ButtonDefaults.buttonColors(containerColor = StatusGreen),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text("Update", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // ── Hero: Pulsing WiFi icon + status ──────────────────────────
             Box(

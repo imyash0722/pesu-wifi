@@ -15,6 +15,10 @@ import com.imyash.pesuwifi.data.WifiSuggestionManager
 import com.imyash.pesuwifi.service.WifiKeepaliveService
 import com.imyash.pesuwifi.util.PermissionManager
 import com.imyash.pesuwifi.util.PermissionState
+import com.imyash.pesuwifi.util.UpdateInfo
+import com.imyash.pesuwifi.util.UpdateManager
+import com.imyash.pesuwifi.util.UpdateState
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -300,5 +304,37 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             _errorMessage.value = "Failed to import accounts: Invalid format"
         }
         return success
+    }
+
+    val updateState: StateFlow<UpdateState> = UpdateManager.updateState
+
+    fun checkForUpdates(force: Boolean = false) {
+        viewModelScope.launch {
+            val info = UpdateManager.checkForUpdates(getApplication(), force)
+            if (force && info == null && UpdateManager.updateState.value is UpdateState.UpToDate) {
+                _userMessage.value = "App is up to date"
+            }
+        }
+    }
+
+    fun downloadUpdate(updateInfo: UpdateInfo) {
+        viewModelScope.launch {
+            try {
+                UpdateManager.downloadUpdate(getApplication(), updateInfo)
+            } catch (e: Exception) {
+                _errorMessage.value = "Download failed: ${e.message}"
+            }
+        }
+    }
+
+    fun installUpdate(apkFile: File) {
+        val success = UpdateManager.installUpdate(getApplication(), apkFile)
+        if (!success) {
+            _errorMessage.value = "Please authorize install permissions to update"
+        }
+    }
+
+    fun dismissUpdate() {
+        UpdateManager.resetState()
     }
 }
