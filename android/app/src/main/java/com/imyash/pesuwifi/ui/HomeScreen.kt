@@ -1,0 +1,539 @@
+package com.imyash.pesuwifi.ui
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.imyash.pesuwifi.BuildConfig
+import com.imyash.pesuwifi.ui.components.AccountDialog
+import com.imyash.pesuwifi.ui.components.FirstLaunchPermissionsDialog
+import com.imyash.pesuwifi.ui.components.PermissionsCard
+import com.imyash.pesuwifi.ui.components.PermissionsRequiredDialog
+import com.imyash.pesuwifi.ui.theme.StatusAmber
+import com.imyash.pesuwifi.ui.theme.StatusGreen
+import com.imyash.pesuwifi.ui.theme.StatusRed
+import com.imyash.pesuwifi.util.PermissionManager
+import com.imyash.pesuwifi.viewmodel.PortalViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    viewModel: PortalViewModel,
+    onNavigateToAccounts: () -> Unit,
+    onNavigateToLogs: () -> Unit = {},
+    onRequestNotification: () -> Unit = {},
+    onRequestBatteryOptimization: () -> Unit = {},
+    onRequestExactAlarm: () -> Unit = {},
+    onRequestAutostart: () -> Unit = {}
+) {
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    val initialPermissions = remember { PermissionManager.getPermissionState(context) }
+    var showAddAccountDialog by remember { mutableStateOf(false) }
+    var showPermissionsDialog by remember { mutableStateOf(false) }
+    var showFirstLaunchDialog by remember {
+        mutableStateOf(
+            !PermissionManager.hasSeenFirstLaunchPrompt(context) &&
+                !initialPermissions.allEssentialGranted
+        )
+    }
+
+    LaunchedEffect(state.permissionState.allEssentialGranted) {
+        if (state.permissionState.allEssentialGranted && !PermissionManager.hasSeenFirstLaunchPrompt(context)) {
+            PermissionManager.setSeenFirstLaunchPrompt(context, true)
+        }
+    }
+
+    LaunchedEffect(state.userMessage) {
+        state.userMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessages()
+        }
+    }
+
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let {
+            snackbarHostState.showSnackbar("Error: $it")
+            viewModel.clearMessages()
+        }
+    }
+
+    // Pulse animation for WiFi icon when connected
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulseAlpha"
+    )
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulseScale"
+    )
+
+    val isWifiConnected = state.status.isWifiConnected
+    val isPesuWifi = state.status.isPesuWifi
+    val isPortalOnline = state.status.isPortalOnline
+    val isConnected = isWifiConnected && isPesuWifi
+    val isLoggedIn = state.status.isLoggedIn
+    val isExternalWifi = isWifiConnected && !isPesuWifi
+
+    // Status color & text
+    val statusColor = when {
+        !isWifiConnected -> MaterialTheme.colorScheme.onSurfaceVariant
+        isExternalWifi -> MaterialTheme.colorScheme.outline
+        isLoggedIn -> StatusGreen
+        isConnected -> StatusAmber
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusTitle = when {
+        !isWifiConnected -> "Wi-Fi Disconnected"
+        !isPesuWifi -> "External Wi-Fi"
+        isLoggedIn -> "Session Active"
+        !isPortalOnline -> "Portal Unreachable"
+        else -> "Session Inactive"
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "PESU WiFi",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                actions = {
+                    IconButton(
+                        onClick = { viewModel.refresh() },
+                        enabled = !state.isLoading
+                    ) {
+                        if (state.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "Refresh")
+                        }
+                    }
+                    IconButton(onClick = onNavigateToLogs) {
+                        Icon(imageVector = Icons.Default.Description, contentDescription = "Diagnostics & Logs")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // ── Hero: Pulsing WiFi icon + status ──────────────────────────
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(120.dp)
+            ) {
+                // Outer pulse ring (only when connected)
+                if (isConnected) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .graphicsLayer {
+                                scaleX = pulseScale
+                                scaleY = pulseScale
+                                alpha = pulseAlpha
+                            }
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                }
+                // Inner tonal container
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isConnected)
+                                statusColor.copy(alpha = 0.12f)
+                            else if (isExternalWifi)
+                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant
+                        )
+                ) {
+                    Icon(
+                        imageVector = if (isWifiConnected) Icons.Default.Wifi else Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = if (isConnected) statusColor else if (isExternalWifi) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Status headline
+            Text(
+                text = statusTitle,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Status message sub-text
+            Text(
+                text = state.status.statusMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Status pill chip & VPN indicator
+            val pillColor = if (isExternalWifi) MaterialTheme.colorScheme.primary else statusColor
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50.dp))
+                        .background(pillColor.copy(alpha = 0.12f))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(pillColor)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = when {
+                            !isWifiConnected -> "Disconnected"
+                            isExternalWifi -> "External Wi-Fi"
+                            isLoggedIn -> "Authenticated"
+                            !isPortalOnline -> "Gateway unreachable"
+                            isConnected -> "Connected, not logged in"
+                            else -> "Connecting..."
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = pillColor
+                    )
+                }
+
+                if (state.status.isVpnActive) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "VPN Active",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // ── Active account chip ────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f))
+                    .clickable {
+                        if (state.accounts.isNotEmpty()) onNavigateToAccounts()
+                        else showAddAccountDialog = true
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = state.activeUser ?: "Add account",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = if (state.accounts.isNotEmpty()) Icons.Default.ChevronRight else Icons.Default.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Primary action button ─────────────────────────────────────
+            val hasAccounts = state.accounts.isNotEmpty()
+            val buttonContainerColor = when {
+                !hasAccounts -> MaterialTheme.colorScheme.secondaryContainer
+                isLoggedIn -> StatusRed
+                else -> MaterialTheme.colorScheme.primary
+            }
+            val buttonContentColor = when {
+                !hasAccounts -> MaterialTheme.colorScheme.onSecondaryContainer
+                isLoggedIn -> Color.White
+                else -> MaterialTheme.colorScheme.onPrimary
+            }
+
+            Button(
+                onClick = {
+                    when {
+                        !hasAccounts -> showAddAccountDialog = true
+                        isLoggedIn -> viewModel.logout()
+                        else -> viewModel.connectAndLogin()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(50.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = buttonContainerColor,
+                    contentColor = buttonContentColor,
+                    disabledContainerColor = buttonContainerColor.copy(alpha = 0.4f),
+                    disabledContentColor = buttonContentColor.copy(alpha = 0.6f)
+                ),
+                enabled = !state.isLoading
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = buttonContentColor,
+                        strokeWidth = 2.5.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = when {
+                            !hasAccounts -> Icons.Default.Add
+                            isLoggedIn -> Icons.AutoMirrored.Filled.Logout
+                            else -> Icons.AutoMirrored.Filled.Login
+                        },
+                        contentDescription = null,
+                        tint = buttonContentColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = when {
+                            !hasAccounts -> "Add Account to Connect"
+                            isLoggedIn -> "Disconnect"
+                            else -> "Connect"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = buttonContentColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Latency indicator below button
+            if (state.status.latencyMs != null && isLoggedIn) {
+                Text(
+                    text = "Latency: ${state.status.latencyMs} ms",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Tester build only: persistent PermissionsCard for easy debug access
+            if (BuildConfig.SHOW_PERMISSIONS_SECTION &&
+                (!state.permissionState.allEssentialGranted || state.permissionState.hasAutostartSettings)) {
+                Spacer(modifier = Modifier.height(16.dp))
+                PermissionsCard(
+                    permissionState = state.permissionState,
+                    onRequestNotification = onRequestNotification,
+                    onRequestBatteryOptimization = onRequestBatteryOptimization,
+                    onRequestExactAlarm = onRequestExactAlarm,
+                    onRequestAutostart = onRequestAutostart,
+                    onAcknowledgeExternalBattery = {
+                        viewModel.setBatteryOptimizationOverride(true)
+                    },
+                    onResetBatteryOverride = {
+                        viewModel.setBatteryOptimizationOverride(false)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+            Text(
+                text = "PESU WiFi v${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showPermissionsDialog) {
+            PermissionsRequiredDialog(
+                permissionState = state.permissionState,
+                onRequestNotification = onRequestNotification,
+                onRequestBatteryOptimization = onRequestBatteryOptimization,
+                onRequestExactAlarm = onRequestExactAlarm,
+                onAcknowledgeExternalBattery = {
+                    viewModel.setBatteryOptimizationOverride(true)
+                },
+                onStartAnyway = {
+                    viewModel.setBatteryOptimizationOverride(true)
+                    showPermissionsDialog = false
+                    viewModel.toggleDaemon()
+                },
+                onDismiss = { showPermissionsDialog = false }
+            )
+        }
+
+        if (showAddAccountDialog) {
+            AccountDialog(
+                onDismiss = { showAddAccountDialog = false },
+                onSave = { u, p ->
+                    viewModel.saveAccount(u, p)
+                    showAddAccountDialog = false
+                }
+            )
+        }
+
+        if (showFirstLaunchDialog) {
+            FirstLaunchPermissionsDialog(
+                permissionState = state.permissionState,
+                onRequestNotification = onRequestNotification,
+                onRequestBatteryOptimization = onRequestBatteryOptimization,
+                onRequestExactAlarm = onRequestExactAlarm,
+                onAcknowledgeExternalBattery = {
+                    viewModel.setBatteryOptimizationOverride(true)
+                },
+                onGrantAll = {
+                    if (state.permissionState.allEssentialGranted) {
+                        PermissionManager.setSeenFirstLaunchPrompt(context, true)
+                        showFirstLaunchDialog = false
+                    } else {
+                        when {
+                            !state.permissionState.isNotificationGranted -> onRequestNotification()
+                            !state.permissionState.isBatteryOptimizationIgnored -> onRequestBatteryOptimization()
+                            !state.permissionState.canScheduleExactAlarms -> onRequestExactAlarm()
+                            else -> {
+                                PermissionManager.setSeenFirstLaunchPrompt(context, true)
+                                showFirstLaunchDialog = false
+                            }
+                        }
+                    }
+                },
+                onDismiss = {
+                    PermissionManager.setSeenFirstLaunchPrompt(context, true)
+                    showFirstLaunchDialog = false
+                }
+            )
+        }
+    }
+}

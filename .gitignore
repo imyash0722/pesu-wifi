@@ -19,3 +19,15 @@ dist/
 *.egg-info/
 .pytest_cache/
 .serena/
+
+# Android build artifacts
+*.iml
+.gradle/
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/.kotlin/
+
+# Website artifacts
+website/node_modules/

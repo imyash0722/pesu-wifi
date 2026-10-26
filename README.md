@@ -1,210 +1,67 @@
-# PESU WiFi Login Manager & Watchdog Daemon (Rust Edition)
+# PESU WiFi — Unified Multi-Platform Captive Portal Engine
 
-A blazing fast, native Rust automated captive portal login manager and keepalive watchdog daemon for PES University campus Wi-Fi networks.
+A blazing fast, native multi-platform captive portal login manager and continuous keepalive watchdog daemon for PES University campus Wi-Fi networks (RR Campus, EC Campus & Amaatra Hostel).
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases)
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
-[![Changelog](https://img.shields.io/badge/Changelog-Release%20Notes-green.svg)](CHANGELOG.md)
-
----
-
-## Why Rust?
-
-- **Zero Runtime Dependencies:** Compiles down to a single standalone static binary (~2.3 MB). No Python runtime, `pip`, or virtualenv required.
-- **Microsecond Cold Start:** Launches in **<2ms** instead of ~100ms for Python startup.
-- **Ultra-Low Memory Footprint:** Background daemon consumes only **~3 MB RSS** memory (10x lighter than Python's ~40 MB).
-- **Rock-Solid Reliability:** Compile-time memory safety prevents runtime crashes during 24/7 background operation.
+[![Latest Release](https://img.shields.io/github/v/release/imyash0722/pesu-wifi?color=blue)](https://github.com/imyash0722/pesu-wifi/releases/latest)
+[![Website](https://img.shields.io/badge/Website-GitHub_Pages-6C6E36.svg)](https://imyash0722.github.io/pesu-wifi/)
+[![Setup Guide](https://img.shields.io/badge/Setup_Guide-Visual_Instructions-E3BD90.svg)](https://imyash0722.github.io/pesu-wifi/instructions.html)
+[![iOS Guide](https://img.shields.io/badge/iOS_Guide-Apple_Shortcuts-92e4c5.svg)](https://imyash0722.github.io/pesu-wifi/ios.html)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-## Features
+## Supported Platforms
 
-- **Cross-Platform Parity (Linux & Windows):** Native support for both Linux (systemd, notify-send) and Windows 10/11 (Win32 WlanAPI, WinRT toast notifications, Task Scheduler / pure Win32 hidden processes).
-- **Dual-Layer VPN Compatibility (WireGuard, OpenVPN, WARP, Tailscale):**
-  - **Layer 1 (Host `/32` Route Bypass):** Automatically configures `/32` host routes for captive portal gateways (`192.168.254.1/32` & `10.14.142.1/32`) via the physical Wi-Fi gateway (`nmcli` on Linux, `New-NetRoute` / `route add` on Windows). System browsers and apps can seamlessly access the portal without traffic getting swallowed by VPN full tunnels (`0.0.0.0/0` or `0.0.0.0/1`).
-  - **Layer 2 (Socket-Level Interface Pinning):** Raw sockets bind directly to the physical Wi-Fi adapter via unprivileged `SO_BINDTOIFINDEX` on Linux and direct Wi-Fi transport. The daemon's `/live` keepalive heartbeats and authentication requests completely bypass VPN tunnels even under strict kill-switch or split-tunnel policies.
-- **Multi-Account Auto-Failover:** Automatically cascades to backup accounts when the active user hits concurrent device limits (code 529) or daily data transfer quotas.
-- **Always-On Event-Driven Keepalive Watchdog:**
-  - **Hybrid Kernel Event & Heartbeat Engine:** Combines instant OS kernel notifications (`rtnetlink` route sockets on Linux, `WlanRegisterNotification` on Windows) with an active 180s keepalive watchdog (`/live` heartbeat). Wakes with **0ms latency** on any network state transition, while maintaining periodic gateway heartbeats to prevent captive portal server inactivity disconnections.
-  - **AP Roaming & BSSID Handover Verification:** Automatically detects physical Access Point transitions (BSSID changes) when walking across campus buildings/blocks and verifies link stability instantly.
-  - **Instant Cyberoam Auto-Authentication (< 150ms):** Automatically authenticates upon campus Wi-Fi association or captive portal redirects.
-  - **Power-Saving & Sleep Immunity:**
-    - **Wi-Fi Power Save Disabling:** Automatically turns off 802.11 Wi-Fi power saving on campus connections (`nmcli` powersave 2 on Linux, `powercfg` Wireless Maximum Performance on Windows) so network adapters never sleep or throttle.
-    - **Active Sleep & Idle Inhibition:** Acquires system power inhibitor locks (`systemd-inhibit` on Linux, Win32 `SetThreadExecutionState` with Away Mode on Windows) while on campus Wi-Fi. Keeps the daemon, CPU, and network alive even when the screen is off or in battery saving mode, and gracefully releases the lock when off-campus.
-- **Desktop Notifications:** Dispatches native system notifications (`notify-send` on Linux, Action Center Toasts on Windows) on login, session renewal, and authentication errors.
-- **Sub-Second Status Detection:** Probes the local gateway in 10–30ms to detect session states without redundant network traffic.
-- **Multi-Account Switching:** Save multiple student accounts, switch the active user instantly, or explicitly log in under a specific account.
-- **Secure Atomic Credential Storage:** Stores credentials locally in `~/.config/pesu-wifi/config.json` (Linux) or `%APPDATA%\pesu-wifi\config.json` (Windows) with strict user-only permissions.
-- **Resilient Multi-Tier Self-Healing:**
-  - **Linux:** Connection renegotiation, radio power cycling, and interface recovery.
-  - **Windows:** `netsh` profile renegotiation and interface disconnect/reconnect.
-- **Shell Auto-Completions:** Native tab-completion support for Bash, Zsh, and Fish shells.
-- **Modern CLI:** Clean ANSI status cards, colored indicators, and comprehensive verification suite with automatic UTF-8 console setup on Windows.
+| Platform | Interface | Engine | Status | Download |
+| :--- | :--- | :--- | :--- | :--- |
+| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.0 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.0 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.0 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **iOS / iPadOS** | Native Shortcuts | Apple Shortcuts Personal Automation | Live Guide | [View Guide](https://imyash0722.github.io/pesu-wifi/ios.html) |
+| **macOS** | CLI / LaunchAgent | Native Rust CLI | Compatible | Build from Source |
 
 ---
 
-## Installation & Building
+## Key Features
 
-### Windows (10 / 11)
+- **Full VPN Compatibility (WireGuard, Tailscale, WARP, OpenVPN, AdGuard):**
+  - **Linux & Windows Desktop:** Automatically provisions host `/32` routes for gateway endpoints (`192.168.254.1/32`, `172.16.1.1/32`, `10.14.142.1/32`) bound to the physical Wi-Fi interface. Prevents VPN default routes (`0.0.0.0/0`) from dropping local captive portal packets.
+  - **Android:** Custom `ResilientSocketFactory` intercepts kernel `EPERM (Operation not permitted)` during socket `connect()` and gracefully routes traffic via RFC-1918 gateway bypass. Fallback to `LinkProperties.dhcpServerAddress` on Android 11+ (API 30+).
+- **Smart Multi-Account Auto-Failover:** Automatically cascades to backup accounts when the active user hits concurrent device limits (code 529), daily data transfer quotas, or account expiration.
+- **Continuous Jittered Keepalive Watchdog:**
+  - Sends XML keepalive heartbeats every 120s–180s with randomized anti-storm jitter (`mode=192`) satisfying Cyberoam's strict Dead Client Detection (DCD) while preventing server-side DDoS conditions.
+- **Deep Sleep & Standby Immunity:**
+  - **Android 15 & 16:** Exempt from 6-hour cumulative background limits via `FOREGROUND_SERVICE_SPECIAL_USE` (`specialUse`). Synchronized coroutine WakeLocks prevent Doze CPU sleep drops mid-probe.
+  - **Windows & Linux Desktop:** Inhibits system sleep and disables Wi-Fi 802.11 power saving while associated with campus networks.
+- **Sub-Second Gateway Discovery:** Probes candidate gateways (`192.168.254.1:8090` and `172.16.1.1:8090`) with self-signed SSL certificate handling for Sophos firewalls.
+- **Instant Roaming Re-Auth (< 150ms):** Automatically detects physical Access Point transitions across campus blocks and re-authenticates with zero dropped packets.
 
-#### Option 1: Standalone `.exe` Setup Wizard (Recommended)
-Download and run **[`pesu-wifi-v3.6.0-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/download/v3.6.0/pesu-wifi-v3.6.0-windows-x86_64-setup.exe)** from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases).
-- Automatic per-user installation (no admin / UAC prompt required).
-- Configures user `PATH` and background watchdog autostart automatically.
-- Includes clean Start Menu shortcuts and Control Panel uninstaller.
+---
 
-#### Option 2: PowerShell One-Click Setup
-Run in PowerShell (as your regular user):
+## Quick Installation
+
+### 1. Android Phone
+Download the **[Latest Stable APK](https://github.com/imyash0722/pesu-wifi/releases/latest)** or check our **[Visual Setup Guide](https://imyash0722.github.io/pesu-wifi/instructions.html)**.
+
+### 2. Windows PC (10 / 11)
+Run in PowerShell (per-user install, no admin prompt needed):
 ```powershell
 irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
+Or download the standalone Inno Setup **[`pesu-wifi-v3.7.0-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
 
-#### Option 3: Scoop Package Manager
-```powershell
-scoop install https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/contrib/pesu-wifi.json
-```
-
-#### Option 4: Portable Standalone Executable (.zip)
-Download `pesu-wifi-v3.6.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
-
----
-
-### Linux
-
-#### Option A: Pre-compiled Standalone Binary (Any Linux x86_64)
-
+### 3. Linux (Arch / Ubuntu / Fedora / Debian)
+Run in your terminal:
 ```bash
-curl -sSL https://github.com/imyash0722/pesu-wifi/releases/download/v3.6.0/pesu-wifi-v3.6.0-linux-x86_64.tar.gz | tar -xz
-cd pesu-wifi-v3.6.0-linux-x86_64 && ./install.sh
+curl -sSL https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.sh | bash
 ```
-
-#### Option B: Arch Linux / CachyOS (`.pkg.tar.zst`)
-
+Or on Arch Linux / CachyOS via AUR:
 ```bash
-sudo pacman -U https://github.com/imyash0722/pesu-wifi/releases/download/v3.6.0/pesu-wifi-3.6.0-x86_64.pkg.tar.zst
+yay -S pesu-wifi-bin
 ```
 
-#### Option C: Build from Source (Requires Cargo / Rust)
-
-```bash
-# Clone the repository
-git clone https://github.com/imyash0722/pesu-wifi.git ~/pesu-wifi
-cd ~/pesu-wifi
-
-# Build release binary
-cargo build --release
-
-# Run one-click setup script (installs binary, completions, and systemd service)
-./install.sh
-```
-
-The compiled release binary is located at `target/release/pesu-wifi` (Linux) or `target/release/pesu-wifi.exe` (Windows).
-
----
-
-## Setup & Credential Management
-
-Add your login credentials securely:
-```bash
-pesu-wifi add
-```
-```text
-Enter login credentials:
-  username: <your_username>
-  password: <your_password>
-```
-
-Credentials are saved in `~/.config/pesu-wifi/config.json` and `~/.config/pesu-wifi/.env` with strict `0600` (user-only read/write) permissions.
-
----
-
-## CLI Command Reference
-
-### Options & Top-Level Flags
-```bash
-# Display help information (-h, --help)
-pesu-wifi -h
-pesu-wifi --help
-
-# Print version information (-v, --version)
-pesu-wifi -v
-pesu-wifi --version
-
-# List all saved accounts and stored passwords directly (-p, --passwords)
-pesu-wifi -p
-pesu-wifi --passwords
-
-# Subcommands also support contextual help
-pesu-wifi <subcommand> --help
-```
-
-### Connection & Status
-```bash
-# View live connection status overview card
-pesu-wifi status
-```
-
-### Authentication & Sessions
-```bash
-# Smart login using the active account
-pesu-wifi login
-
-# Explicitly login using a specific saved account
-pesu-wifi login student1
-
-# Clean captive portal sign-out
-pesu-wifi logout
-```
-
-### Account Management
-```bash
-# Add or update an account (interactive prompt)
-pesu-wifi add
-
-# Add credentials directly via arguments
-pesu-wifi add username password
-
-# Select/switch default account (interactive menu)
-pesu-wifi select
-pesu-wifi select student2
-
-# List saved accounts
-pesu-wifi list
-
-# List saved accounts showing stored passwords
-pesu-wifi list -p
-pesu-wifi list --passwords
-
-# Delete an account
-pesu-wifi del student1
-```
-
-### Daemon & Background Service
-```bash
-# Start background watchdog daemon via systemd user service
-pesu-wifi start
-
-# Run watchdog in the foreground (useful for debugging or containers)
-pesu-wifi start -f
-pesu-wifi start --foreground
-
-# Stop background watchdog daemon
-pesu-wifi stop
-```
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `PESU_USERNAME` | Override active login username | *(Config file)* |
-| `PESU_PASSWORD` | Override active login password | *(Config file)* |
-| `PESU_PORTAL_BASE` | Portal gateway URL | `http://192.168.254.1:8090` |
-| `PESU_WIFI_CON` | Preferred Wi-Fi connection name | `PESU-EC-Campus` |
-| `PESU_KEEPALIVE_INTERVAL` | Keepalive watchdog polling interval (seconds) | `180` |
-| `FORCE_COLOR` | Force ANSI color formatting (`1` / `0`) | Auto-detected |
+### 4. Apple iPhone / iPad (iOS)
+Follow our step-by-step native **[iOS Automation Guide](https://imyash0722.github.io/pesu-wifi/ios.html)** to configure zero-click sign-in via Apple Shortcuts Personal Automations.
 
 ---
 
@@ -212,67 +69,59 @@ pesu-wifi stop
 
 ```text
 pesu-wifi/
-├── Cargo.toml               # Rust package & clap dependency definitions
-├── Cargo.lock               # Cargo dependency lockfile
-├── src/
-│   ├── main.rs              # CLI entry point, clap derive parser & command routing
-│   ├── portal.rs            # Cyberoam HTTP portal client & XML parser
-│   ├── config.rs            # Multi-account configuration & credentials store
-│   ├── wifi.rs              # NetworkManager & interface recovery controller
-│   ├── daemon.rs            # Background keepalive watchdog & notification loop
-│   └── ui.rs                # ANSI styling, cards & terminal formatting
-├── install.sh               # Standalone release builder and system installer
-├── pesu-wifi.service        # Systemd user service unit definition
-├── completions/             # Shell auto-completion scripts
-│   ├── pesu-wifi.bash       # Bash completions
-│   ├── pesu-wifi.zsh        # Zsh completions
-│   └── pesu-wifi.fish       # Fish completions
-├── aur/
-│   ├── PKGBUILD             # Arch User Repository package build definition
-│   ├── .SRCINFO             # Arch User Repository package metadata
-│   └── pesu-wifi.install    # Arch package post-install instructions
+├── android/                 # Native Android app (Kotlin, Material 3 Jetpack Compose)
+│   ├── app/                 # Android application module & unit tests
+│   ├── gradle/              # Gradle wrapper & version catalogs
+│   └── build.gradle.kts     # Android root Gradle configuration
+├── aur/                     # Arch User Repository (AUR) PKGBUILD package
+├── completions/             # Shell completions (Bash, Zsh, Fish)
+├── contrib/                 # Scoop package manifests & extra configs
+├── src/                     # Native Rust CLI & background daemon source code
+│   ├── daemon.rs            # Autonomous background keepalive watchdog
+│   ├── portal.rs            # Cyberoam HTTP / XML authentication client
+│   ├── wifi.rs              # OS Wi-Fi subsystems & /32 VPN host route bypass
+│   ├── config.rs            # Encrypted credential storage (~/.config/pesu-wifi)
+│   └── main.rs              # CLI command parser & entry point
+├── website/                 # React + React Bits modern landing page
+│   ├── src/                 # React components (SpotlightCard, BentoGrid, Simulator)
+│   └── public/              # Static guides (instructions.html, ios.html)
 ├── .github/workflows/
-│   └── ci.yml               # Automated Rust GitHub Actions CI
-├── CHANGELOG.md             # Comprehensive commit-by-commit release notes
-├── LICENSE                  # MIT License
-└── README.md                # Documentation and guide
+│   ├── ci.yml               # Unified multi-platform CI & release workflow (Linux, Windows, Android)
+│   └── pages.yml            # GitHub Pages deployment workflow
+├── Cargo.toml               # Rust package definition
+├── installer.iss            # Inno Setup 6 Windows setup wizard
+├── install.sh               # One-line Linux installer
+├── install.ps1              # One-line Windows installer
+└── pesu-wifi.service        # systemd user service definition
 ```
 
 ---
 
-## Release History & Changelog
+## Building from Source
 
-- [**v3.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.3.0) ([Notes](CHANGELOG.md#v330--windows-1011-support-win32-native-wifi-toast-notifications--scoop)) — Full Windows 10/11 support, Win32 Native Wifi API (`WlanAPI.dll`), Action Center toast notifications, PowerShell background manager, and Scoop manifest.
-- [**v3.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.2.0) ([Notes](CHANGELOG.md#v320--server-load-minimization-keepalive-tuning--resilient-architecture)) — 180s keepalive tuning, direct heartbeat polling skipping HTML page downloads, socket reuse, anti-storm jitter, and NetworkManager dispatcher hook.
-- [**v3.1.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.1.0) ([Notes](CHANGELOG.md#v310--clap-derive-migration--production-cli-architecture)) — Full migration to `clap` derive parser, automatic multi-level help screens, contextual typo suggestions, and strict POSIX flag validation.
-- [**v3.0.4**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.4) ([Notes](CHANGELOG.md#v304--strict-standard-posix-flags--clean-syntax-enforcement)) — Strict POSIX/GNU options enforcement (`-v`, `--version`, `-h`, `--help`), pruned informal command aliases, and standard exit code `2`.
-- [**v3.0.3**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.3) ([Notes](CHANGELOG.md#v303--top-level-password-flags--enhanced-cli-flag-support)) — Top-level `-p` / `--passwords` flag support and root-level shell completions.
-- [**v3.0.2**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.2) ([Notes](CHANGELOG.md#v302--standardized-cli-options-unified-daemon-controls--clean-output)) — Standardized CLI options, unified foreground/background daemon controls (`start [-f, --foreground]`), and pruned redundant commands.
-- [**v3.0.1**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.1) ([Notes](CHANGELOG.md#v301--build-stability-non-posix-filesystem-support--zero-python-completions)) — Build stability on external/exFAT mounts, zero-Python completions, daemon path hardening, and test suite expansion.
-- [**v3.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.0.0) — Complete native Rust rewrite with sub-millisecond cold starts, ~3MB resident daemon memory, zero Python runtime dependencies, and standalone binary distribution.
-- [**v2.3.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.3.0) — Process controls (`start`/`stop`/`restart`), campus SSID auto-standby, desktop notifications, atomic umask hardening, anti-storm jitter protection, and multi-packaging CI.
-- [**v2.2.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.2.0) — Interactive Wi-Fi selector, sub-second gateway detection, multi-account credentials management, and verification suite.
-- [**v2.0.0**](https://github.com/imyash0722/pesu-wifi/releases/tag/v2.0.0) — Initial rewritten Python CLI release with automated Cyberoam login & keepalive.
-
----
-
-## Uninstallation
-
-To remove `pesu-wifi`:
-
-**If installed via AUR or `.pkg.tar.zst`:**
+### Building Desktop CLI (Rust)
+Requires Rust 1.75+:
 ```bash
-sudo pacman -R pesu-wifi-git
+cargo test
+cargo build --release
 ```
+The compiled binary will be placed at `target/release/pesu-wifi` (or `pesu-wifi.exe` on Windows).
 
-**If installed via `install.sh` / source:**
+### Building Android App (Gradle)
+Requires JDK 17:
 ```bash
-systemctl --user disable --now pesu-wifi.service
-rm -f ~/.local/bin/pesu-wifi /usr/local/bin/pesu-wifi
-rm -f ~/.config/systemd/user/pesu-wifi.service
-rm -f ~/.local/share/bash-completion/completions/pesu-wifi
-rm -f ~/.config/fish/completions/pesu-wifi.fish
-systemctl --user daemon-reload
+cd android
+./gradlew test
+./gradlew assembleRelease
+```
+The compiled APKs will be located in `android/app/build/outputs/apk/`.
+
+### Building React Website
+Requires Node.js 20+:
+```bash
+cd website
+npm install
+npm run build
 ```
 
 ---

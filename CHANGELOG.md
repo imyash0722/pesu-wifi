@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.0 — Unified Multi-Platform Monorepo (Android, Windows, Linux, iOS & React Landing Page)](#v370--unified-multi-platform-monorepo-android-windows-linux-ios--react-landing-page)
+  - [Overview & Major Highlights](#v370-overview--major-highlights)
 - [v3.6.0 — Dual-Layer VPN Compatibility, Multi-Account Auto-Failover & Self-Signed Portal SSL](#v360--dual-layer-vpn-compatibility-multi-account-auto-failover--self-signed-portal-ssl)
   - [Overview & Major Highlights](#v360-overview--major-highlights)
 - [v3.5.1 — Fix Keepalive Heartbeat Watchdog in Event-Driven Engine](#v351--fix-keepalive-heartbeat-watchdog-in-event-driven-engine)
@@ -19,6 +21,30 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.0 — Unified Multi-Platform Monorepo (Android, Windows, Linux, iOS & React Landing Page)
+
+**Release Date:** October 26, 2026  
+**Git Tag:** [`v3.7.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.0)  
+**Release Type:** Unified Multi-Platform Release (All Operating Systems)  
+
+### v3.7.0 Overview & Major Highlights
+
+- **📦 Monorepo Unification**: Fully consolidated `pesu-wifi-android` and `pesu-wifi` into a single, canonical repository under `pesu-wifi`.
+- **📱 Android App Integration**:
+  - Full Material 3 native Jetpack Compose app integrated into `android/`.
+  - Android 14–16 foreground service hardened under `specialUse` (`FOREGROUND_SERVICE_TYPE_SPECIAL_USE`), exempting the continuous keepalive monitor from cumulative 6-hour kill switches.
+  - Linux kernel `EPERM` interception in `ResilientSocketFactory` with RFC-1918 gateway bypass for active VPN tunnels (Tailscale, WireGuard, WARP, OpenVPN).
+  - Multi-account auto-failover, 120s ±30s jittered keepalive daemon, and Quick Settings tile.
+- **🖥️ Desktop & Daemon (Windows & Linux)**:
+  - Linux x86_64 standalone binary and systemd user service with `/32` host route bypass for VPNs.
+  - Windows 10/11 Win32 WlanAPI native service and Inno Setup 6 `.exe` setup wizard.
+- **🌐 React & React Bits Website**:
+  - Modern React 19 landing page deployed to `https://imyash0722.github.io/pesu-wifi/`.
+  - Features React Bits Spotlight cards, Aurora background, Bento grid, and interactive real-time keepalive & roaming simulator.
+- **🍎 iOS Personal Automation Guide**: Complete zero-click Apple Shortcuts guide hosted directly on the site.
 
 ---
 

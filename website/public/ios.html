@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Automated captive portal auto-login for iOS (iPhone & iPad) on PES University and Amaatra Hostel networks using Apple Shortcuts.">
+  <meta name="theme-color" content="#090c0f">
+
+  <title>iOS Setup &amp; Automation — PESU WiFi</title>
+
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css?v=12">
+  <style>
+    .code-box {
+      background: #0d1217;
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      padding: 1.15rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88rem;
+      color: #92e4c5;
+      overflow-x: auto;
+      margin: 0.85rem 0 1.25rem 0;
+      line-height: 1.6;
+    }
+    .config-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      margin: 1.5rem 0;
+    }
+    .input-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .input-row label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--brand-title);
+    }
+    .input-field {
+      background: #090c0f;
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      color: var(--brand-title);
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s ease;
+    }
+    .input-field:focus {
+      border-color: var(--btn-primary-bg);
+    }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--btn-primary-bg);
+      color: var(--btn-primary-text);
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1.15rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover {
+      background: var(--btn-primary-hover);
+    }
+    .badge-ios {
+      background: #172433;
+      border: 1px solid #294460;
+      color: #7bb5ef;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="guide-container">
+    
+    <!-- Top Navigation -->
+    <nav class="nav-bar">
+      <a href="./index.html" class="nav-brand">
+        <img src="./assets/icon.svg" alt="PESU WiFi Logo" width="38" height="38">
+        <span>PESU WiFi</span>
+      </a>
+      <div class="nav-links">
+        <a href="./instructions.html" class="nav-back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+          <span>Android Guide</span>
+        </a>
+        <a href="./index.html" class="nav-back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Home</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="guide-header">
+      <span class="badge badge-ios" style="margin-bottom: 0.85rem;">iOS 15, 16, 17 &amp; 18 • Native Apple Shortcuts</span>
+      <h1>Zero-Click Campus Auto-Login for iOS</h1>
+      <p>
+        Apple strictly prohibits persistent background third-party daemons on iOS. However, <strong>Apple Shortcuts Personal Automation</strong> runs at the hardware Wi-Fi layer — logging your iPhone or iPad into the campus captive portal silently the exact moment you connect.
+      </p>
+    </header>
+
+    <!-- Notice Card -->
+    <aside class="notice-card" role="alert">
+      <div class="notice-icon">⚡</div>
+      <div>
+        <h2 class="notice-title">How It Works: Native Hardware-Level Automation</h2>
+        <div class="notice-body">
+          You don't need to keep any third-party apps open. Using the built-in <strong>Apple Shortcuts</strong> app on your iPhone:
+          <ul>
+            <li><strong>Trigger:</strong> iOS detects connection to <code>PESU-EC-Campus</code>, <code>PESU-RR-Campus</code>, or <code>AMAATRA-HOSTEL</code>.</li>
+            <li><strong>Execution:</strong> iOS silently dispatches the Sophos / Cyberoam authentication packet (<code>mode=191</code>) in &lt;200ms.</li>
+            <li><strong>Experience:</strong> Seamless, unbroken internet connectivity as soon as you walk into campus or hostel.</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Visual Steps -->
+    <section class="steps-section" aria-label="iOS Setup Steps">
+
+      <!-- Step 1: Create Shortcut -->
+      <article class="step-item">
+        <div class="step-content" style="grid-column: 1 / -1;">
+          <span class="step-badge">Step 1</span>
+          <h2 class="step-title">Create the "PESU WiFi Login" Shortcut</h2>
+          <p class="step-desc">
+            Open the <strong>Shortcuts</strong> app on your iPhone or iPad, tap the <strong>+</strong> button in the top right corner to create a new shortcut, and name it <strong>PESU WiFi Login</strong>.
+          </p>
+
+          <p class="step-desc" style="margin-top: 0.75rem;">
+            Add the following 3 native actions in order:
+          </p>
+
+          <ol class="step-list" style="margin-top: 0.5rem;">
+            <li>
+              <strong>Action 1 — Text:</strong> Add a <strong>Text</strong> block with your target gateway URL:<br>
+              <code>http://192.168.254.1:8090/login.xml</code> (PESU EC &amp; RR Campus)<br>
+              <em>Hostel residents: use <code>http://172.16.1.1:8090/login.xml</code> for Amaatra.</em>
+            </li>
+            <li>
+              <strong>Action 2 — Get Contents of URL:</strong><br>
+              Tap <strong>Show More</strong> on the action and configure:
+              <ul style="margin-top: 0.4rem;">
+                <li><strong>Method:</strong> <code>POST</code></li>
+                <li><strong>Headers:</strong> Add Header <code>User-Agent</code> = <code>Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)</code></li>
+                <li><strong>Request Body:</strong> Set to <code>Form</code></li>
+                <li>Add Key <code>mode</code> = <code>191</code></li>
+                <li>Add Key <code>username</code> = <em>Your PESU SRN / Username</em></li>
+                <li>Add Key <code>password</code> = <em>Your Wi-Fi Password</em></li>
+                <li>Add Key <code>a</code> = <code>1700000000000</code></li>
+                <li>Add Key <code>producttype</code> = <code>0</code></li>
+              </ul>
+            </li>
+            <li>
+              <strong>Action 3 — Show Notification (Optional):</strong><br>
+              Add <strong>Show Notification</strong> with text: <em>"PESU WiFi: Connected as [Your Username]!"</em>
+            </li>
+          </ol>
+
+          <div class="step-tip">
+            💡 <strong>Interactive Helper:</strong> Fill in the helper below to generate your ready-to-copy parameters!
+          </div>
+        </div>
+      </article>
+
+      <!-- Interactive Helper -->
+      <div class="config-card">
+        <h3 style="color: var(--brand-title); font-size: 1.15rem; margin-bottom: 0.4rem;">Quick Parameter Generator</h3>
+        <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem;">
+          Enter your credentials to preview the exact values for your Apple Shortcut. (Runs entirely in your browser — zero credentials ever leave your device).
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="input-row">
+            <label for="ios-username">PESU Username (SRN)</label>
+            <input type="text" id="ios-username" class="input-field" placeholder="e.g. PES1UG22CS001" autocomplete="username">
+          </div>
+          <div class="input-row">
+            <label for="ios-password">Wi-Fi Password</label>
+            <input type="password" id="ios-password" class="input-field" placeholder="Your Password" autocomplete="current-password">
+          </div>
+        </div>
+
+        <div class="input-row">
+          <label for="ios-campus">Campus Location</label>
+          <select id="ios-campus" class="input-field" style="cursor: pointer;">
+            <option value="http://192.168.254.1:8090/login.xml">PESU EC &amp; RR Campus (192.168.254.1)</option>
+            <option value="http://172.16.1.1:8090/login.xml">Amaatra Hostel (172.16.1.1)</option>
+          </select>
+        </div>
+
+        <div class="code-box" id="ios-code-preview">
+POST URL: http://192.168.254.1:8090/login.xml
+Form Data:
+  mode: 191
+  username: [ENTER USERNAME ABOVE]
+  password: [ENTER PASSWORD ABOVE]
+  a: 1729938000000
+  producttype: 0
+        </div>
+
+        <button type="button" class="copy-btn" id="btn-copy-config">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="btn-copy-text">Copy POST Parameters</span>
+        </button>
+      </div>
+
+      <!-- Step 2: Automation Trigger -->
+      <article class="step-item">
+        <div class="step-content" style="grid-column: 1 / -1;">
+          <span class="step-badge">Step 2</span>
+          <h2 class="step-title">Set Up "Run Immediately" Personal Automation</h2>
+          <p class="step-desc">
+            This step makes authentication 100% automatic without having to tap anything when you connect to Wi-Fi.
+          </p>
+
+          <ul class="step-list">
+            <li>In the <strong>Shortcuts</strong> app, tap the <strong>Automation</strong> tab at the bottom.</li>
+            <li>Tap the <strong>+</strong> button (or "New Automation").</li>
+            <li>Scroll down and tap <strong>Wi-Fi</strong>.</li>
+            <li>Tap <strong>Choose Network</strong> and select your campus networks:
+              <br><code>PESU-EC-Campus</code>, <code>PESU-RR-Campus</code>, and/or <code>AMAATRA-HOSTEL</code>.
+            </li>
+            <li>Select <strong>"Run Immediately"</strong>. <em>(Crucial: this prevents iOS from asking for manual confirmation).</em></li>
+            <li>Toggle <strong>"Notify When Run"</strong> to OFF if you want completely silent background sign-in.</li>
+            <li>Tap <strong>Next</strong>, then choose the <strong>PESU WiFi Login</strong> shortcut you created in Step 1.</li>
+          </ul>
+
+          <div class="step-tip">
+            🎉 <strong>You're all set!</strong> Whenever your iPhone connects to campus Wi-Fi, it will execute the login instantly.
+          </div>
+        </div>
+      </article>
+
+      <!-- Step 3: Quick Action Button & Home Screen Toggle -->
+      <article class="step-item">
+        <div class="step-content" style="grid-column: 1 / -1;">
+          <span class="step-badge">Step 3 (Optional)</span>
+          <h2 class="step-title">Add 1-Tap Widget or Action Button</h2>
+          <p class="step-desc">
+            For manual control whenever you want to trigger re-authentication or disconnect:
+          </p>
+          <ul class="step-list">
+            <li><strong>Home Screen Widget:</strong> Long-press your home screen, tap <strong>+</strong>, search for <em>Shortcuts</em>, and add the 1-tap button.</li>
+            <li><strong>Action Button (iPhone 15 Pro / 16):</strong> Go to <em>Settings &rarr; Action Button &rarr; Shortcut</em>, and select <strong>PESU WiFi Login</strong>.</li>
+            <li><strong>Control Center (iOS 18):</strong> Add the Shortcut toggle directly inside Control Center.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Step 4: 1-Tap Logout Shortcut -->
+      <article class="step-item">
+        <div class="step-content" style="grid-column: 1 / -1;">
+          <span class="step-badge">Step 4 (Optional)</span>
+          <h2 class="step-title">1-Tap Logout Shortcut</h2>
+          <p class="step-desc">
+            Campus firewalls enforce strict concurrent device limits. If you want to log out of your iPhone before using your laptop:
+          </p>
+          <ul class="step-list">
+            <li>Create a second shortcut named <strong>PESU WiFi Logout</strong>.</li>
+            <li>Add <strong>Get Contents of URL</strong> with:
+              <br>URL: <code>http://192.168.254.1:8090/logout.xml</code>
+              <br>Method: <code>POST</code>
+              <br>Form Body: <code>mode = 193</code>, <code>username = [Your SRN]</code>, <code>producttype = 0</code>.
+            </li>
+            <li>Tap once to instantly liberate your session!</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Troubleshooting -->
+      <article class="step-item">
+        <div class="step-content" style="grid-column: 1 / -1;">
+          <span class="step-badge">Pro Tips</span>
+          <h2 class="step-title">iOS Wi-Fi Configuration Best Practices</h2>
+          <ul class="step-list">
+            <li>
+              <strong>Disable "Private Wi-Fi Address" on Campus:</strong><br>
+              In iOS <em>Settings &rarr; Wi-Fi &rarr; tap (i) next to PESU network</em>, set <strong>Private Wi-Fi Address</strong> to <strong>Off</strong>. Random MAC rotation can cause the firewall to drop DHCP bindings.
+            </li>
+            <li>
+              <strong>Auto-Join:</strong><br>
+              Ensure <strong>Auto-Join</strong> is enabled so your iPhone connects immediately when in range of campus APs.
+            </li>
+            <li>
+              <strong>Handling the Apple "Captive Portal Assistant" Popup:</strong><br>
+              When first connecting, iOS may pop up a white login sheet. Tap <strong>Cancel</strong> in the top right, then tap <strong>"Use Without Internet"</strong>. From then on, your Shortcut will authenticate silently without the popup interrupting you!
+            </li>
+            <li>
+              <strong>VPNs (Tailscale, WireGuard, WARP, AdGuard):</strong><br>
+              Ensure <strong>"Local Network Access"</strong> or <strong>"Allow LAN"</strong> is enabled in your VPN settings so iOS can reach the local captive portal gateway (<code>192.168.254.1</code> or <code>172.16.1.1</code>). If using Encrypted/Private DNS profiles, make sure local RFC-1918 traffic is excluded.
+            </li>
+          </ul>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer" style="margin-top: 3.5rem;">
+      <div>Open Source under MIT License • PESU WiFi</div>
+    </footer>
+
+  </div>
+
+  <script>
+    (function() {
+      var userIn = document.getElementById('ios-username');
+      var passIn = document.getElementById('ios-password');
+      var campSel = document.getElementById('ios-campus');
+      var codePrev = document.getElementById('ios-code-preview');
+      var copyBtn = document.getElementById('btn-copy-config');
+      var copyText = document.getElementById('btn-copy-text');
+
+      function updatePreview() {
+        var u = userIn.value.trim() || '[YOUR_USERNAME]';
+        var p = passIn.value.trim() || '[YOUR_PASSWORD]';
+        var url = campSel.value;
+        var now = Date.now();
+
+        var text = 'POST URL: ' + url + '\n' +
+                   'Method: POST\n' +
+                   'Headers: User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)\n' +
+                   'Form Body:\n' +
+                   '  mode: 191\n' +
+                   '  username: ' + u + '\n' +
+                   '  password: ' + p + '\n' +
+                   '  a: ' + now + '\n' +
+                   '  producttype: 0';
+        codePrev.textContent = text;
+      }
+
+      userIn.addEventListener('input', updatePreview);
+      passIn.addEventListener('input', updatePreview);
+      campSel.addEventListener('change', updatePreview);
+
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(codePrev.textContent).then(function() {
+          copyText.textContent = 'Copied to Clipboard!';
+          setTimeout(function() {
+            copyText.textContent = 'Copy POST Parameters';
+          }, 2500);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

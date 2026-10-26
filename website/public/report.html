@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Report captive portal connection issues, Wi-Fi keepalive dropouts, or suggest features for PESU WiFi on Android.">
+  <meta name="theme-color" content="#090c0f">
+
+  <title>Report an Issue &amp; Feedback — PESU WiFi</title>
+
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css?v=12">
+</head>
+<body>
+
+  <div class="guide-container">
+
+    <!-- Top Navigation -->
+    <nav class="nav-bar">
+      <a href="./index.html" class="nav-brand">
+        <img src="./assets/icon.svg" alt="PESU WiFi Logo" width="38" height="38">
+        <span>PESU WiFi</span>
+      </a>
+      <div class="nav-links">
+        <a href="./instructions.html" class="nav-back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+          </svg>
+          <span>Setup Guide</span>
+        </a>
+        <a href="./index.html" class="nav-back-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Back to Home</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="guide-header">
+      <span class="badge" style="margin-bottom: 0.85rem;">Community Support • v1.7.4</span>
+      <h1>Report an Issue or Feedback</h1>
+      <p>
+        Encountered a captive portal authentication dropout, classroom roaming issue, or have a feature idea for PES University? Submit your details directly below — no GitHub account required.
+      </p>
+    </header>
+
+    <!-- Quick Checklist / Tip Card -->
+    <aside class="notice-card" role="complementary">
+      <div class="notice-icon">💡</div>
+      <div>
+        <h2 class="notice-title">Before You Submit a Report</h2>
+        <div class="notice-body">
+          Most connection problems are due to Android system power management or missing permissions:
+          <ul>
+            <li><strong>AP Switching Notification:</strong> Did you tap &ldquo;Allow&rdquo; on the Android system Wi-Fi notification in your shade? (See the <a href="./instructions.html" style="color: var(--brand-title); font-weight: 700; text-decoration: underline;">Setup Guide</a>).</li>
+            <li><strong>Battery Whitelist:</strong> Ensure Battery usage is set to <em>&ldquo;Unrestricted&rdquo;</em> so Android does not kill the keepalive service when your phone is in your pocket.</li>
+            <li><strong>Universal Diagnostic Logs:</strong> Tap the Logs icon in the top right of the app (built into all versions — both stable and tester builds), tap <em>Copy</em>, and paste relevant log entries into your description.</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Report Form Card -->
+    <main class="report-card">
+      <form id="issueReportForm" class="report-form">
+        <input type="hidden" name="_cc" value="imyash0722@gmail.com">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="deviceModel">Phone Brand &amp; Model <span class="req">*</span></label>
+            <input type="text" id="deviceModel" name="device_model" placeholder="e.g. Google Pixel 9a, Samsung Galaxy S23, OnePlus 11" required>
+          </div>
+          <div class="form-group">
+            <label for="androidVersion">Android Version <span class="req">*</span></label>
+            <select id="androidVersion" name="android_version" required>
+              <option value="" disabled selected>Select OS version...</option>
+              <option value="Android 16 / 17 (Preview / Canary)">Android 16 / 17 (Preview / Canary)</option>
+              <option value="Android 15">Android 15</option>
+              <option value="Android 14">Android 14</option>
+              <option value="Android 13">Android 13</option>
+              <option value="Android 12 / 12L">Android 12 / 12L</option>
+              <option value="Android 11">Android 11</option>
+              <option value="Android 10">Android 10</option>
+              <option value="Older (Android 9 or below)">Older (Android 9 or below)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="campusLocation">Campus / Location <span class="req">*</span></label>
+            <select id="campusLocation" name="campus_location" required>
+              <option value="" disabled selected>Select location on campus...</option>
+              <option value="EC Campus — GJBC (Classrooms / Seminar Halls)">EC Campus — GJBC (Classrooms / Seminar Halls)</option>
+              <option value="EC Campus — CIE Labs / South Cafe">EC Campus — CIE Labs / South Cafe</option>
+              <option value="EC Campus — Library / Auditorium">EC Campus — Library / Auditorium</option>
+              <option value="RR Campus — Engineering Blocks">RR Campus — Engineering Blocks</option>
+              <option value="Amaatra Hostel (AMAATRA-HOSTEL)">Amaatra Hostel (AMAATRA-HOSTEL)</option>
+              <option value="Food Court">Food Court</option>
+              <option value="Other / Off-Campus">Other / Off-Campus</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="issueCategory">Issue Category <span class="req">*</span></label>
+            <select id="issueCategory" name="issue_category" required>
+              <option value="" disabled selected>Select category...</option>
+              <option value="Captive Portal Login Failure / Invalid Password Loop">Captive Portal Login Failure / Invalid Password Loop</option>
+              <option value="Wi-Fi Disconnecting When Screen Locks (Keepalive Drop)">Wi-Fi Disconnecting When Screen Locks (Keepalive Drop)</option>
+              <option value="Classroom / AP Roaming Handover Failure">Classroom / AP Roaming Handover Failure</option>
+              <option value="Wrong Gateway IP / Portal Unreachable">Wrong Gateway IP / Portal Unreachable</option>
+              <option value="App Crash or UI Freeze">App Crash or UI Freeze</option>
+              <option value="Feature Request / Suggestion">Feature Request / Suggestion</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="issueDescription">What happened? <span class="req">*</span></label>
+          <textarea id="issueDescription" name="description" rows="5" placeholder="Describe what you were doing, what went wrong, and paste any diagnostic logs from the in-app Logs icon..." required></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="contactInfo">Email or Social Handle (Optional)</label>
+            <input type="text" id="contactInfo" name="contact" placeholder="Email, Telegram, or WhatsApp handle if you'd like a follow-up">
+          </div>
+          <div class="form-group">
+            <label for="appVersion">App Version <span class="req">*</span></label>
+            <select id="appVersion" name="app_version" required>
+              <option value="v1.7.4" selected>v1.7.4 (Latest)</option>
+              <option value="v1.7.3">v1.7.3</option>
+              <option value="v1.7.2">v1.7.2</option>
+              <option value="v1.7.1">v1.7.1</option>
+              <option value="v1.7.0">v1.7.0</option>
+              <option value="Tester Track / Beta Build">Tester Track / Beta Build</option>
+              <option value="Older version / Not sure">Older version / Not sure</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" id="submitReportBtn" class="btn btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+            <span>Submit Directly (No Login)</span>
+          </button>
+          <button type="button" id="openGithubIssueBtn" class="btn btn-secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+            </svg>
+            <span>Pre-fill on GitHub Issues</span>
+          </button>
+        </div>
+
+        <p style="font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; margin-top: -0.25rem;">
+          💡 <strong>Submit Directly</strong> sends your report straight to the developer without requiring a GitHub account. <strong>Pre-fill on GitHub Issues</strong> opens GitHub with all details pre-formatted so you can create and track the issue under your GitHub profile.
+        </p>
+
+        <div id="formStatus" class="form-status" style="display: none;"></div>
+      </form>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div>
+        <span>PESU WiFi • Open Source under MIT License</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Handle Community Report Form Submission & GitHub Issues
+    (function() {
+      var form = document.getElementById('issueReportForm');
+      var submitBtn = document.getElementById('submitReportBtn');
+      var githubBtn = document.getElementById('openGithubIssueBtn');
+      var statusDiv = document.getElementById('formStatus');
+
+      var descTextarea = document.getElementById('issueDescription');
+      if (descTextarea) {
+        descTextarea.addEventListener('input', function() {
+          this.style.height = 'auto';
+          this.style.height = Math.min(400, Math.max(130, this.scrollHeight)) + 'px';
+        });
+      }
+
+      // Automatically populate App Version dropdown with latest GitHub releases
+      var versionSelect = document.getElementById('appVersion');
+      if (versionSelect) {
+        fetch("https://api.github.com/repos/imyash0722/pesu-wifi/releases")
+          .then(function(res) {
+            if (!res.ok) throw new Error("Releases fetch error");
+            return res.json();
+          })
+          .then(function(releases) {
+            if (!Array.isArray(releases) || releases.length === 0) return;
+
+            versionSelect.innerHTML = "";
+
+            // Populate top 8 releases
+            var topReleases = releases.slice(0, 8);
+            topReleases.forEach(function(rel, index) {
+              var opt = document.createElement("option");
+              opt.value = rel.tag_name;
+              opt.textContent = rel.tag_name + (index === 0 ? " (Latest)" : "");
+              if (index === 0) opt.selected = true;
+              versionSelect.appendChild(opt);
+            });
+
+            var testerOpt = document.createElement("option");
+            testerOpt.value = "Tester Track / Beta Build";
+            testerOpt.textContent = "Tester Track / Beta Build";
+            versionSelect.appendChild(testerOpt);
+
+            var olderOpt = document.createElement("option");
+            olderOpt.value = "Older version / Not sure";
+            olderOpt.textContent = "Older version / Not sure";
+            versionSelect.appendChild(olderOpt);
+
+            // Also update the version badge in the header
+            var badge = document.querySelector('.guide-header .badge');
+            if (badge && topReleases[0]) {
+              badge.textContent = "Community Support • " + topReleases[0].tag_name;
+            }
+          })
+          .catch(function() {
+            // Keep default static options if GitHub API is unreachable
+          });
+      }
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        var deviceModel = document.getElementById('deviceModel').value.trim();
+        var androidVersion = document.getElementById('androidVersion').value;
+        var campusLocation = document.getElementById('campusLocation').value;
+        var issueCategory = document.getElementById('issueCategory').value;
+        var description = document.getElementById('issueDescription').value.trim();
+        var contact = document.getElementById('contactInfo').value.trim();
+        var appVersion = document.getElementById('appVersion').value.trim() || 'v1.7.4';
+
+        submitBtn.disabled = true;
+        var originalBtnHtml = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span>Submitting...</span>';
+        statusDiv.style.display = 'none';
+
+        var payload = {
+          _subject: "[PESU WiFi Report] " + issueCategory + " (" + deviceModel + ")",
+          _template: "table",
+          _captcha: "false",
+          _cc: "imyash0722@gmail.com",
+          device_model: deviceModel,
+          android_version: androidVersion,
+          campus_location: campusLocation,
+          issue_category: issueCategory,
+          app_version: appVersion,
+          description: description,
+          contact: contact || "Not provided",
+          submitted_at: new Date().toISOString()
+        };
+
+        fetch("https://formsubmit.co/ajax/yatinrajesh77@gmail.com", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(function(res) {
+          if (res.ok) {
+            return res.json();
+          }
+          throw new Error("HTTP error " + res.status);
+        })
+        .then(function(data) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
+          statusDiv.className = 'form-status success';
+          statusDiv.innerHTML = '✓ <strong>Report submitted successfully!</strong> Thank you for your feedback. We will investigate this promptly.';
+          statusDiv.style.display = 'block';
+          form.reset();
+          if (descTextarea) {
+            descTextarea.style.height = '130px';
+          }
+        })
+        .catch(function(err) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalBtnHtml;
+          statusDiv.className = 'form-status error';
+          statusDiv.innerHTML = 'Direct submission encountered an error (or ad blocker). You can still submit this report in 1 tap using the <strong>Open on GitHub Issues</strong> button below!';
+          statusDiv.style.display = 'block';
+        });
+      });
+
+      if (githubBtn) {
+        githubBtn.addEventListener('click', function() {
+          var deviceModel = document.getElementById('deviceModel').value.trim() || "Unspecified Model";
+          var androidVersion = document.getElementById('androidVersion').value || "Unspecified Version";
+          var campusLocation = document.getElementById('campusLocation').value || "Unspecified Location";
+          var issueCategory = document.getElementById('issueCategory').value || "General Feedback";
+          var description = document.getElementById('issueDescription').value.trim() || "No description provided.";
+          var contact = document.getElementById('contactInfo').value.trim() || "N/A";
+          var appVersion = document.getElementById('appVersion').value.trim() || "v1.7.4";
+
+          var isFeature = issueCategory.indexOf("Feature") !== -1;
+          var title = isFeature
+            ? "[Feature]: " + (description.length > 50 ? description.substring(0, 47) + "..." : description || "New Suggestion")
+            : "[Bug]: " + issueCategory + " (" + deviceModel + ")";
+
+          var labelArr = ["community-report"];
+          if (isFeature) {
+            labelArr.push("enhancement");
+          } else {
+            labelArr.push("bug");
+            if (issueCategory.indexOf("Login") !== -1 || issueCategory.indexOf("Password") !== -1 || issueCategory.indexOf("Portal") !== -1) {
+              labelArr.push("portal-login");
+            }
+            if (issueCategory.indexOf("Keepalive") !== -1 || issueCategory.indexOf("Locks") !== -1) {
+              labelArr.push("keepalive");
+            }
+            if (issueCategory.indexOf("Roaming") !== -1 || issueCategory.indexOf("AP") !== -1) {
+              labelArr.push("campus-ap");
+            }
+          }
+
+          var body = "### Phone Brand & Model\n" + deviceModel + "\n\n" +
+                     "### Android Version\n" + androidVersion + "\n\n" +
+                     "### Campus / Hostel Location\n" + campusLocation + "\n\n" +
+                     "### Issue Category\n" + issueCategory + "\n\n" +
+                     "### App Version\n" + appVersion + "\n\n" +
+                     "### Description\n" + description + "\n\n" +
+                     "### Contact (Optional)\n" + contact;
+
+          var ghUrl = "https://github.com/imyash0722/pesu-wifi/issues/new" +
+                      "?title=" + encodeURIComponent(title) +
+                      "&body=" + encodeURIComponent(body) +
+                      "&labels=" + encodeURIComponent(labelArr.join(","));
+
+          window.open(ghUrl, "_blank", "noopener,noreferrer");
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -93,9 +93,48 @@ jobs:
             pesu-wifi-*-windows-x86_64.zip
             dist/*.exe
 
+  android:
+    name: Build Android APKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      - name: Run Android Unit Tests
+        working-directory: android
+        run: ./gradlew test -Dorg.gradle.java.home="$JAVA_HOME"
+
+      - name: Build Release APKs
+        working-directory: android
+        run: ./gradlew assembleRelease -Dorg.gradle.java.home="$JAVA_HOME"
+
+      - name: Package Android Artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p apk_dist
+          VERSION=${GITHUB_REF#refs/tags/v}
+          cp android/app/build/outputs/apk/stable/release/app-stable-release.apk "apk_dist/pesu-wifi-v${VERSION}-android-stable.apk"
+          cp android/app/build/outputs/apk/beta/release/app-beta-release.apk "apk_dist/pesu-wifi-v${VERSION}-android-tester.apk"
+
+      - name: Upload Android Dist
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-dist
+          path: apk_dist/*.apk
+
   publish:
     name: Publish Release
-    needs: build
+    needs: [build, android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -112,6 +151,7 @@ jobs:
           find dist -name "*.tar.gz" -exec cp {} release_assets/ \;
           find dist -name "*.zip" -exec cp {} release_assets/ \;
           find dist -name "*.exe" -exec cp {} release_assets/ \;
+          find dist -name "*.apk" -exec cp {} release_assets/ \;
           cp install.sh release_assets/
           cp install.ps1 release_assets/
           cd release_assets
