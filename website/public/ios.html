@@ -180,6 +180,27 @@
           <div class="step-tip">
             💡 <strong>Interactive Helper:</strong> Fill in the helper below to generate your ready-to-copy parameters!
           </div>
+
+          <!-- VPN Compatibility Note for iOS -->
+          <div class="config-card" style="margin-top: 1.5rem; border-color: rgba(59, 130, 246, 0.3); background: rgba(13, 20, 35, 0.7);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem;">
+              <span style="font-size: 1.25rem;">🛡️</span>
+              <h3 style="color: #60a5fa; font-size: 1.05rem; margin: 0; font-weight: 700;">Using a VPN on iOS? (Tailscale, WireGuard, WARP, AdGuard)</h3>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 0.85rem;">
+              If your iPhone has an active VPN when connecting to campus Wi-Fi, the portal request will fail because the VPN tries to route the local campus IP (<code>192.168.254.1</code>) through the encrypted tunnel. You can make it 100% automatic using either option:
+            </p>
+            <ul class="step-list" style="font-size: 0.85rem;">
+              <li>
+                <strong>Option A — Add Native "Set VPN" Actions to your Shortcut (Recommended):</strong><br>
+                Add <strong>Set VPN</strong> &rarr; <em>Disconnect</em> as the very first action, and <strong>Set VPN</strong> &rarr; <em>Connect</em> at the end (after a 1-second <strong>Wait</strong>). This guarantees silent login on local Wi-Fi, then instantly re-secures your traffic with your VPN!
+              </li>
+              <li>
+                <strong>Option B — Enable "Allow Local Network Access" in your VPN app:</strong><br>
+                In <strong>Tailscale</strong>, toggle on <em>"Allow Local Network Access"</em>. In <strong>WireGuard</strong> or <strong>WARP</strong>, exclude local RFC-1918 subnets (<code>192.168.0.0/16</code>, <code>172.16.0.0/12</code>) under Split Tunnel settings.
+              </li>
+            </ul>
+          </div>
         </div>
       </article>
 
@@ -311,7 +332,13 @@ Form Data:
             </li>
             <li>
               <strong>VPNs (Tailscale, WireGuard, WARP, AdGuard):</strong><br>
-              Ensure <strong>"Local Network Access"</strong> or <strong>"Allow LAN"</strong> is enabled in your VPN settings so iOS can reach the local captive portal gateway (<code>192.168.254.1</code> or <code>172.16.1.1</code>). If using Encrypted/Private DNS profiles, make sure local RFC-1918 traffic is excluded.
+              Campus captive portals (<code>192.168.254.1</code> or <code>172.16.1.1</code>) exist exclusively on the local physical Wi-Fi network. To prevent VPN tunnels from dropping the connection:
+              <ul style="margin-top: 0.35rem; padding-left: 1.25rem;">
+                <li><strong>Automated Pause in Shortcut:</strong> Add Apple Shortcuts' native <em>"Set VPN &rarr; Disconnect"</em> before the login action and <em>"Set VPN &rarr; Connect"</em> after.</li>
+                <li><strong>Tailscale:</strong> Open iOS Settings &rarr; Tailscale &rarr; Toggle on <strong>"Allow Local Network Access"</strong>.</li>
+                <li><strong>Cloudflare WARP (1.1.1.1):</strong> Settings &rarr; Advanced &rarr; Connection options &rarr; Split Tunnels &rarr; Exclude <code>192.168.0.0/16</code> and <code>172.16.0.0/12</code>.</li>
+                <li><strong>WireGuard:</strong> In tunnel settings, ensure AllowedIPs excludes private RFC-1918 subnets or toggle "Exclude Private IPs".</li>
+              </ul>
             </li>
           </ul>
         </div>
