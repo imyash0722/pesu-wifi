@@ -7,7 +7,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/imyash0722/pesu-wifi/releases/download/v3.6.0/pesu-wifi-v3.6.0-windows-x86_64.zip",
-            "hash": ""
+            "hash": "262ca755c92cd6910a30e3663d1aa28aa6fdce792f120a5af7a79d8a7144da60"
         }
     },
     "bin": "pesu-wifi.exe",
