@@ -2,6 +2,7 @@ import React from 'react';
 import { Download, ShieldCheck, Terminal, Smartphone, Sparkles, Check, ArrowRight, Laptop, Monitor } from 'lucide-react';
 import { SpotlightCard } from './SpotlightCard';
 import { ShinyButton } from './ShinyButton';
+import { CommandBlock } from './CommandBlock';
 
 export const DownloadSection: React.FC = () => {
   const version = 'v3.7.0';
@@ -112,9 +113,16 @@ export const DownloadSection: React.FC = () => {
                   Download Windows .exe Setup
                 </ShinyButton>
               </a>
-              <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px] text-slate-400 select-all">
-                irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
-              </div>
+              <CommandBlock
+                command="irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex"
+                language="powershell"
+                prompt="PS>"
+              >
+                <span className="text-cyan-400 font-semibold">irm</span>{' '}
+                <span className="text-sky-300">https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1</span>{' '}
+                <span className="text-purple-400 font-bold">|</span>{' '}
+                <span className="text-cyan-400 font-semibold">iex</span>
+              </CommandBlock>
             </div>
           </div>
         </SpotlightCard>
@@ -169,9 +177,17 @@ export const DownloadSection: React.FC = () => {
                   Download Linux tar.gz
                 </ShinyButton>
               </a>
-              <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px] text-slate-400 select-all">
-                curl -sSL https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.sh | bash
-              </div>
+              <CommandBlock
+                command="curl -sSL https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.sh | bash"
+                language="bash"
+                prompt="$"
+              >
+                <span className="text-emerald-400 font-semibold">curl</span>{' '}
+                <span className="text-amber-400 font-medium">-sSL</span>{' '}
+                <span className="text-sky-300">https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.sh</span>{' '}
+                <span className="text-purple-400 font-bold">|</span>{' '}
+                <span className="text-emerald-400 font-semibold">bash</span>
+              </CommandBlock>
             </div>
           </div>
         </SpotlightCard>
