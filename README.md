@@ -14,9 +14,9 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 
 | Platform | Interface | Engine | Status | Download |
 | :--- | :--- | :--- | :--- | :--- |
-| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.0 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.0 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.0 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.1 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.1 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.1 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
 | **iOS / iPadOS** | Native Shortcuts | Apple Shortcuts Personal Automation | Live Guide | [View Guide](https://imyash0722.github.io/pesu-wifi/ios.html) |
 | **macOS** | CLI / LaunchAgent | Native Rust CLI | Compatible | Build from Source |
 
@@ -48,7 +48,7 @@ Run in PowerShell (per-user install, no admin prompt needed):
 ```powershell
 irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
-Or download the standalone Inno Setup **[`pesu-wifi-v3.7.0-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
+Or download the standalone Inno Setup **[`pesu-wifi-v3.7.1-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
 
 ### 3. Linux (Arch / Ubuntu / Fedora / Debian)
 Run in your terminal:

@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.1 — In-App Guides, In-App Self-Updater, Syntax-Colored Command Blocks & CLI Aliases](#v371--in-app-guides-in-app-self-updater-syntax-colored-command-blocks--cli-aliases)
+  - [Overview & Major Highlights](#v371-overview--major-highlights)
 - [v3.7.0 — Unified Multi-Platform Monorepo (Android, Windows, Linux, iOS & React Landing Page)](#v370--unified-multi-platform-monorepo-android-windows-linux-ios--react-landing-page)
   - [Overview & Major Highlights](#v370-overview--major-highlights)
 - [v3.6.0 — Dual-Layer VPN Compatibility, Multi-Account Auto-Failover & Self-Signed Portal SSL](#v360--dual-layer-vpn-compatibility-multi-account-auto-failover--self-signed-portal-ssl)
@@ -21,6 +23,36 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.1 — In-App Guides, In-App Self-Updater, Syntax-Colored Command Blocks & CLI Aliases
+
+**Release Date:** October 26, 2026  
+**Git Tag:** [`v3.7.1`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.1)  
+**Release Type:** Feature & Ergonomics Release (All Operating Systems)  
+
+### v3.7.1 Overview & Major Highlights
+
+- **📚 In-App Knowledge Base & Guides**: Added a comprehensive Material 3 `GuidesScreen` accessible directly from the top app bar in Android. Covers:
+  - Quick Start & Background Battery Whitelist (`specialUse` foreground service, QS Tile).
+  - Campus Gateways & Roaming Subnets (`192.168.254.1:8090` vs `172.16.1.1:8090`).
+  - Zero-Fiddling Dual-Layer VPN Bypass (`ResilientSocketFactory`).
+  - Smart Multi-Account Auto-Failover.
+  - iOS Companion Shortcut integration.
+- **🔄 Seamless In-App Self-Updater**: Added `UpdateManager` and Material 3 `UpdateDialog` to the Android app:
+  - Periodically checks the GitHub Releases API and compares semantic versions.
+  - Displays formatted release notes and version diff (`v3.7.0` → `v3.7.1`).
+  - Streams APK downloads with live byte progress tracking.
+  - Hands off directly to Android's native `PackageInstaller` via `FileProvider` with `REQUEST_INSTALL_PACKAGES` permission handling.
+- **💻 Syntax-Colored Terminal Blocks & Copy Button**: Created an interactive `CommandBlock` React component for the landing page with macOS window controls, shell badges, token color coding, and 1-tap clipboard copy.
+- **📲 1-Tap iOS Shortcut Generator**: Enhanced `ios.html` with a client-side XML plist `.shortcut` file generator, allowing iOS users to download and immediately open their configured automation without manual action setup.
+- **⚡ CLI Command Aliases**:
+  - `pesu-wifi init`, `pesu-wifi set` as aliases for `pesu-wifi add`.
+  - `pesu-wifi rm`, `pesu-wifi remove`, `pesu-wifi delete` as aliases for `pesu-wifi del`.
+  - `pesu-wifi ls` as alias for `pesu-wifi list`.
+  - `pesu-wifi switch` as alias for `pesu-wifi select`.
+- **🗑️ Standalone Repository Deletion**: Safely archived (`.bundle`) and deleted the legacy `imyash0722/pesu-wifi-android` repository on GitHub following full monorepo consolidation.
 
 ---
 
