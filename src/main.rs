@@ -136,6 +136,12 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
         }
     };
 
+    if let Some(ssid) = wifi::get_current_wifi_ssid() {
+        if wifi::is_campus_ssid(&ssid) {
+            wifi::ensure_vpn_bypass_routes(&ssid);
+        }
+    }
+
     if !portal::is_portal_online() {
         print_err(&format!(
             "Portal gateway ({}) is unreachable. Check your Wi-Fi connection.",

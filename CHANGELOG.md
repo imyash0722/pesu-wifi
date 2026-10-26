@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.6.0 — Dual-Layer VPN Compatibility, Multi-Account Auto-Failover & Self-Signed Portal SSL](#v360--dual-layer-vpn-compatibility-multi-account-auto-failover--self-signed-portal-ssl)
+  - [Overview & Major Highlights](#v360-overview--major-highlights)
 - [v3.5.1 — Fix Keepalive Heartbeat Watchdog in Event-Driven Engine](#v351--fix-keepalive-heartbeat-watchdog-in-event-driven-engine)
   - [Overview & Major Highlights](#v351-overview--major-highlights)
 - [v3.5.0 — Always-On Pure Event-Driven OS Rules (Zero Keepalive Timers & Kernel Sockets)](#v350--always-on-pure-event-driven-os-rules-zero-keepalive-timers--kernel-sockets)
@@ -17,6 +19,26 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.6.0 — Dual-Layer VPN Compatibility, Multi-Account Auto-Failover & Self-Signed Portal SSL
+
+**Release Date:** October 26, 2026  
+**Git Tag:** [`v3.6.0`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.6.0)
+
+### v3.6.0 Overview & Major Highlights
+- **Dual-Layer VPN Compatibility (WireGuard, OpenVPN, Cloudflare WARP, Tailscale, Cisco AnyConnect):**
+  - **Layer 1: Host `/32` Route Bypass:** Automatically configures `/32` host routes for `192.168.254.1/32` and `10.14.142.1/32` via the physical Wi-Fi gateway (`nmcli connection modify <conn> +ipv4.routes` on Linux, `New-NetRoute` / `route add` on Windows). Guarantees that captive portal requests and student browser tabs do not get sucked into VPN tunnels (`0.0.0.0/0` or `0.0.0.0/1`).
+  - **Layer 2: Socket-Level Interface Pinning (`SO_BINDTOIFINDEX`):** Raw sockets bind directly to the physical Wi-Fi network interface index (`libc::SO_BINDTOIFINDEX = 62`). Runs completely unprivileged on modern Linux kernels (5.7+), routing probe, keepalive `/live`, login, and logout requests directly to the campus gateway regardless of VPN routing tables, default routes, or split-tunnel policies.
+- **Multi-Account Auto-Failover:**
+  - Automatically cascades to secondary accounts when the active account reaches concurrent device session limits (code 529: "Maximum login limit reached") or quota transfer limits ("data transfer limit has been exceeded").
+- **Dynamic Keepalive Detection:**
+  - Automatically parses `liveReqTimeInJS` from `/httpclient.html` on campus gateways, dynamically adjusting keepalive heartbeat intervals to match server settings.
+- **Insecure / Self-Signed SSL Support:**
+  - Handles self-signed certificates gracefully using a custom `InsecureServerCertVerifier` in Rustls without compromising security outside the captive portal.
+- **Extended Campus SSID Registry:**
+  - Added support for `PESU-CIE`, `AMAATRA_HOSTEL`, `Foodcourt`, `pes south cafe`, and related campus subnet variants.
 
 ---
 

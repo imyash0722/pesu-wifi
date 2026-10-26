@@ -428,6 +428,83 @@ pub fn disable_wifi_powersave(_ssid: &str) {
         .output();
 }
 
+#[cfg(unix)]
+pub fn ensure_vpn_bypass_routes(ssid: &str) {
+    if !is_campus_ssid(ssid) {
+        return;
+    }
+
+    let gw = match crate::portal::get_default_gateway_ip() {
+        Some(ip) => ip,
+        None => return,
+    };
+
+    let portal_ips = ["192.168.254.1/32", "10.14.142.1/32"];
+
+    let existing_routes = Command::new("nmcli")
+        .args(["-g", "ipv4.routes", "connection", "show", ssid])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    for target in portal_ips {
+        if !existing_routes.contains(target) {
+            let route_entry = format!("{} {}", target, gw);
+            let res = Command::new("nmcli")
+                .args(["connection", "modify", ssid, "+ipv4.routes", &route_entry])
+                .output();
+            if let Ok(out) = res {
+                if out.status.success() {
+                    log(&format!(
+                        "⚡ Configured VPN bypass route for {} via gateway {} on '{}'",
+                        target, gw, ssid
+                    ));
+                }
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+pub fn ensure_vpn_bypass_routes(ssid: &str) {
+    if !is_campus_ssid(ssid) {
+        return;
+    }
+
+    let gw = match crate::portal::get_default_gateway_ip() {
+        Some(ip) => ip,
+        None => return,
+    };
+
+    let targets = ["192.168.254.1", "10.14.142.1"];
+    for target in targets {
+        let _ = Command::new("route")
+            .args(["add", target, "mask", "255.255.255.255", &gw, "metric", "1"])
+            .output();
+    }
+
+    let script = format!(
+        r#"
+        $adapter = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {{ $_.MediaType -eq 'Native 802.11' -or $_.InterfaceDescription -like '*Wi-Fi*' -or $_.Name -like '*Wi-Fi*' }} | Select-Object -First 1
+        if ($adapter) {{
+            $idx = $adapter.ifIndex
+            $targets = @('192.168.254.1/32', '10.14.142.1/32')
+            foreach ($tgt in $targets) {{
+                $existing = Get-NetRoute -DestinationPrefix $tgt -InterfaceIndex $idx -ErrorAction SilentlyContinue
+                if (-not $existing) {{
+                    New-NetRoute -DestinationPrefix $tgt -InterfaceIndex $idx -NextHop '{gw}' -RouteMetric 1 -PolicyStore ActiveStore -ErrorAction SilentlyContinue | Out-Null
+                }}
+            }}
+        }}
+        "#,
+        gw = gw
+    );
+
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+        .output();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,5 +523,12 @@ mod tests {
         assert!(!is_campus_ssid("Home_Network"));
         assert!(!is_campus_ssid("Space"));
         assert!(!is_campus_ssid(""));
+    }
+
+    #[test]
+    fn test_ensure_vpn_bypass_routes_non_campus() {
+        // Non-campus networks must safely do nothing
+        ensure_vpn_bypass_routes("Home_Network");
+        ensure_vpn_bypass_routes("");
     }
 }

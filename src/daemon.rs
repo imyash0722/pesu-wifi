@@ -614,9 +614,10 @@ pub fn run_daemon() -> ! {
         let ssid = current_ssid.unwrap();
         last_standby_state = None;
 
-        // Rule 1: Power-Saving & Sleep Immunity System Calls
+        // Rule 1: Power-Saving, Sleep Immunity & Dual-Layer VPN Bypass System Calls
         if just_connected {
             wifi::disable_wifi_powersave(&ssid);
+            wifi::ensure_vpn_bypass_routes(&ssid);
         }
         inhibitor.activate();
 
@@ -629,6 +630,7 @@ pub fn run_daemon() -> ! {
                         prev, bssid
                     ));
                     just_connected = true;
+                    wifi::ensure_vpn_bypass_routes(&ssid);
                 }
             }
             last_bssid = Some(bssid.clone());

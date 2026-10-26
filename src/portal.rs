@@ -86,26 +86,100 @@ pub fn get_timestamp() -> u128 {
 }
 
 #[cfg(unix)]
-pub fn get_default_gateway_ip() -> Option<String> {
-    let file = std::fs::File::open("/proc/net/route").ok()?;
-    let reader = std::io::BufReader::new(file);
-    use std::io::BufRead;
-    for line in reader.lines().flatten() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 3 && parts[1] == "00000000" {
-            if let Ok(gw_hex) = u32::from_str_radix(parts[2], 16) {
-                if gw_hex != 0 {
-                    // /proc/net/route format: little-endian 32-bit hex
-                    let b0 = (gw_hex & 0xFF) as u8;
-                    let b1 = ((gw_hex >> 8) & 0xFF) as u8;
-                    let b2 = ((gw_hex >> 16) & 0xFF) as u8;
-                    let b3 = ((gw_hex >> 24) & 0xFF) as u8;
-                    return Some(format!("{}.{}.{}.{}", b0, b1, b2, b3));
+pub fn get_wifi_interface_name() -> Option<String> {
+    // 1. Scan sysfs for wireless devices (fast, 0 overhead, no fork/exec)
+    if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.join("wireless").exists() || path.join("phy80211").exists() {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    return Some(name.to_string());
                 }
             }
         }
     }
+
+    // 2. Fallback: nmcli dev
+    if let Ok(out) = std::process::Command::new("nmcli")
+        .args(["-t", "-f", "DEVICE,TYPE", "dev"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            if line.contains(":wifi") {
+                if let Some(dev) = line.split(':').next() {
+                    return Some(dev.trim().to_string());
+                }
+            }
+        }
+    }
+
     None
+}
+
+#[cfg(windows)]
+pub fn get_wifi_interface_name() -> Option<String> {
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.MediaType -eq 'Native 802.11' -or $_.InterfaceDescription -like '*Wi-Fi*' } | Select-Object -First 1).Name",
+        ])
+        .output()
+        .ok()?;
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !name.is_empty() {
+        Some(name)
+    } else {
+        None
+    }
+}
+
+#[cfg(unix)]
+pub fn get_default_gateway_ip() -> Option<String> {
+    let file = std::fs::File::open("/proc/net/route").ok()?;
+    let reader = std::io::BufReader::new(file);
+    use std::io::BufRead;
+
+    let wifi_iface = get_wifi_interface_name();
+    let mut fallback_gw = None;
+
+    for line in reader.lines().flatten() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 && parts[1] == "00000000" {
+            let iface = parts[0];
+            // Skip known VPN / tunnel / bridge / container interfaces
+            let is_vpn = iface.starts_with("tun")
+                || iface.starts_with("tap")
+                || iface.starts_with("wg")
+                || iface.starts_with("tailscale")
+                || iface.starts_with("docker")
+                || iface.starts_with("br-")
+                || iface.starts_with("veth");
+
+            if let Ok(gw_hex) = u32::from_str_radix(parts[2], 16) {
+                if gw_hex != 0 {
+                    let b0 = (gw_hex & 0xFF) as u8;
+                    let b1 = ((gw_hex >> 8) & 0xFF) as u8;
+                    let b2 = ((gw_hex >> 16) & 0xFF) as u8;
+                    let b3 = ((gw_hex >> 24) & 0xFF) as u8;
+                    let ip = format!("{}.{}.{}.{}", b0, b1, b2, b3);
+
+                    // If this matches our physical Wi-Fi interface, prioritize it immediately
+                    if let Some(ref w_if) = wifi_iface {
+                        if iface == w_if {
+                            return Some(ip);
+                        }
+                    }
+
+                    if !is_vpn && fallback_gw.is_none() {
+                        fallback_gw = Some(ip);
+                    }
+                }
+            }
+        }
+    }
+    fallback_gw
 }
 
 #[cfg(windows)]
@@ -114,7 +188,9 @@ pub fn get_default_gateway_ip() -> Option<String> {
         .args([
             "-NoProfile",
             "-Command",
-            "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue | Select-Object -First 1).NextHop",
+            "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+              Where-Object { $_.InterfaceAlias -like '*Wi-Fi*' -or $_.InterfaceAlias -like '*WLAN*' -or $_.InterfaceDescription -like '*Wireless*' -or $_.InterfaceDescription -like '*802.11*' } |
+              Select-Object -First 1).NextHop",
         ])
         .output()
         .ok()?;
@@ -122,8 +198,270 @@ pub fn get_default_gateway_ip() -> Option<String> {
     if !ip.is_empty() && ip.contains('.') {
         Some(ip)
     } else {
-        None
+        let fallback = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+                  Where-Object { $_.InterfaceAlias -notlike '*VPN*' -and $_.InterfaceDescription -notlike '*TAP*' -and $_.InterfaceDescription -notlike '*Wintun*' -and $_.InterfaceDescription -notlike '*WireGuard*' } |
+                  Select-Object -First 1).NextHop",
+            ])
+            .output()
+            .ok()?;
+        let fb_ip = String::from_utf8_lossy(&fallback.stdout).trim().to_string();
+        if !fb_ip.is_empty() && fb_ip.contains('.') {
+            Some(fb_ip)
+        } else {
+            None
+        }
     }
+}
+
+#[cfg(unix)]
+pub fn connect_wifi_socket(addr: std::net::SocketAddr, timeout: Duration) -> std::io::Result<std::net::TcpStream> {
+    use std::os::unix::io::FromRawFd;
+
+    let socket = if addr.is_ipv4() {
+        unsafe { libc::socket(libc::AF_INET, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
+    } else {
+        unsafe { libc::socket(libc::AF_INET6, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
+    };
+    if socket < 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+
+    // Direct interface binding: force all traffic on this socket out of physical Wi-Fi adapter
+    // SO_BINDTOIFINDEX (62) is unprivileged on modern Linux kernels (5.7+)
+    if let Some(ifname) = get_wifi_interface_name() {
+        if let Ok(c_name) = std::ffi::CString::new(ifname) {
+            let ifindex = unsafe { libc::if_nametoindex(c_name.as_ptr()) };
+            if ifindex > 0 {
+                let _ = unsafe {
+                    libc::setsockopt(
+                        socket,
+                        libc::SOL_SOCKET,
+                        libc::SO_BINDTOIFINDEX,
+                        &ifindex as *const _ as *const libc::c_void,
+                        std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                    )
+                };
+            }
+        }
+    }
+
+    // Non-blocking mode for timeout handling
+    unsafe {
+        let flags = libc::fcntl(socket, libc::F_GETFL, 0);
+        libc::fcntl(socket, libc::F_SETFL, flags | libc::O_NONBLOCK);
+    }
+
+    let (sockaddr, socklen) = match addr {
+        std::net::SocketAddr::V4(v4) => {
+            let mut sa: libc::sockaddr_in = unsafe { std::mem::zeroed() };
+            sa.sin_family = libc::AF_INET as libc::sa_family_t;
+            sa.sin_port = v4.port().to_be();
+            sa.sin_addr.s_addr = u32::from_ne_bytes(v4.ip().octets());
+            (
+                &sa as *const libc::sockaddr_in as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+            )
+        }
+        std::net::SocketAddr::V6(v6) => {
+            let mut sa: libc::sockaddr_in6 = unsafe { std::mem::zeroed() };
+            sa.sin6_family = libc::AF_INET6 as libc::sa_family_t;
+            sa.sin6_port = v6.port().to_be();
+            sa.sin6_addr.s6_addr = v6.ip().octets();
+            (
+                &sa as *const libc::sockaddr_in6 as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t,
+            )
+        }
+    };
+
+    let ret = unsafe { libc::connect(socket, sockaddr, socklen) };
+    if ret < 0 {
+        let err = std::io::Error::last_os_error();
+        if err.raw_os_error() != Some(libc::EINPROGRESS) {
+            unsafe { libc::close(socket); }
+            return Err(err);
+        }
+
+        let mut pfd = libc::pollfd {
+            fd: socket,
+            events: libc::POLLOUT,
+            revents: 0,
+        };
+        let timeout_ms = timeout.as_millis().min(i32::MAX as u128) as libc::c_int;
+        let poll_ret = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+        if poll_ret <= 0 {
+            unsafe { libc::close(socket); }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Connection timed out",
+            ));
+        }
+
+        let mut sock_err: libc::c_int = 0;
+        let mut err_len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+        let getsockopt_ret = unsafe {
+            libc::getsockopt(
+                socket,
+                libc::SOL_SOCKET,
+                libc::SO_ERROR,
+                &mut sock_err as *mut _ as *mut libc::c_void,
+                &mut err_len,
+            )
+        };
+        if getsockopt_ret < 0 || sock_err != 0 {
+            unsafe { libc::close(socket); }
+            return Err(std::io::Error::from_raw_os_error(if sock_err != 0 { sock_err } else { 1 }));
+        }
+    }
+
+    // Restore blocking
+    unsafe {
+        let flags = libc::fcntl(socket, libc::F_GETFL, 0);
+        libc::fcntl(socket, libc::F_SETFL, flags & !libc::O_NONBLOCK);
+        Ok(std::net::TcpStream::from_raw_fd(socket))
+    }
+}
+
+#[cfg(unix)]
+pub fn probe_url_direct_wifi(base_url: &str, timeout_ms: u64) -> bool {
+    use std::io::{Read, Write};
+    use std::net::ToSocketAddrs;
+
+    let parsed = match url::Url::parse(base_url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    let host = match parsed.host_str() {
+        Some(h) => h,
+        None => return false,
+    };
+    let port = parsed.port().unwrap_or(8090);
+
+    let addrs = match format!("{}:{}", host, port).to_socket_addrs() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+
+    let timeout = Duration::from_millis(timeout_ms);
+    for addr in addrs {
+        if let Ok(mut stream) = connect_wifi_socket(addr, timeout) {
+            let req = format!(
+                "HEAD /httpclient.html HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: {}\r\nConnection: close\r\n\r\n",
+                host, port, USER_AGENT
+            );
+            if stream.write_all(req.as_bytes()).is_ok() {
+                let mut buf = [0u8; 256];
+                if let Ok(n) = stream.read(&mut buf) {
+                    let text = String::from_utf8_lossy(&buf[..n]);
+                    if text.starts_with("HTTP/1.") {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+#[cfg(unix)]
+pub fn get_direct_wifi(path_and_query: &str, timeout: Duration) -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::net::ToSocketAddrs;
+
+    let base = get_portal_base();
+    let parsed = url::Url::parse(&base).map_err(|e| format!("Invalid portal URL: {}", e))?;
+    let host = parsed.host_str().ok_or_else(|| "No host in portal URL".to_string())?;
+    let port = parsed.port().unwrap_or(8090);
+
+    let addrs = format!("{}:{}", host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS resolution error: {}", e))?;
+
+    let req = format!(
+        "GET {} HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: {}\r\nAccept-Language: en-US,en;q=0.5\r\nConnection: close\r\n\r\n",
+        path_and_query, host, port, USER_AGENT
+    );
+
+    for addr in addrs {
+        if let Ok(mut stream) = connect_wifi_socket(addr, timeout) {
+            let _ = stream.set_read_timeout(Some(timeout));
+            let _ = stream.set_write_timeout(Some(timeout));
+            if stream.write_all(req.as_bytes()).is_ok() {
+                let mut resp_bytes = Vec::new();
+                if stream.read_to_end(&mut resp_bytes).is_ok() {
+                    let text = String::from_utf8_lossy(&resp_bytes);
+                    if let Some(pos) = text.find("\r\n\r\n") {
+                        return Ok(text[pos + 4..].to_string());
+                    } else {
+                        return Ok(text.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Err("Direct Wi-Fi socket GET failed".to_string())
+}
+
+#[cfg(unix)]
+pub fn post_direct_wifi(path: &str, params: &[(&str, &str)], timeout: Duration) -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::net::ToSocketAddrs;
+
+    let base = get_portal_base();
+    let parsed = url::Url::parse(&base).map_err(|e| format!("Invalid portal URL: {}", e))?;
+    let host = parsed.host_str().ok_or_else(|| "No host in portal URL".to_string())?;
+    let port = parsed.port().unwrap_or(8090);
+
+    let addrs = format!("{}:{}", host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS resolution error: {}", e))?;
+
+    let mut serializer = url::form_urlencoded::Serializer::new(String::new());
+    for (k, v) in params {
+        serializer.append_pair(k, v);
+    }
+    let body = serializer.finish();
+
+    let req = format!(
+        "POST {} HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: {}\r\nAccept-Language: en-US,en;q=0.5\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        path, host, port, USER_AGENT, body.len(), body
+    );
+
+    for addr in addrs {
+        if let Ok(mut stream) = connect_wifi_socket(addr, timeout) {
+            let _ = stream.set_read_timeout(Some(timeout));
+            let _ = stream.set_write_timeout(Some(timeout));
+            if stream.write_all(req.as_bytes()).is_ok() {
+                let mut resp_bytes = Vec::new();
+                if stream.read_to_end(&mut resp_bytes).is_ok() {
+                    let text = String::from_utf8_lossy(&resp_bytes);
+                    if let Some(pos) = text.find("\r\n\r\n") {
+                        return Ok(text[pos + 4..].to_string());
+                    } else {
+                        return Ok(text.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Err("Direct Wi-Fi socket POST failed".to_string())
+}
+
+#[cfg(unix)]
+pub fn query_live_direct_wifi(username: &str, timeout_ms: u64) -> bool {
+    let ts = get_timestamp();
+    let path = format!("/live?mode=192&username={}&a={}&producttype=0", username, ts);
+    if let Ok(body) = get_direct_wifi(&path, Duration::from_millis(timeout_ms)) {
+        let parsed = parse_xml(&body, Some(username));
+        let ack = parsed.get("ack").map(|s| s.to_lowercase()).unwrap_or_default();
+        let status = parsed.get("status").map(|s| s.to_lowercase()).unwrap_or_default();
+        return ack == "ack" || status.contains("live") || status.contains("ok");
+    }
+    false
 }
 
 pub fn invalidate_portal_base() {
@@ -149,7 +487,16 @@ pub fn probe_url_alive(base_url: &str, timeout_ms: u64) -> bool {
     match req.call() {
         Ok(resp) => resp.status() >= 200 && resp.status() < 500,
         Err(ureq::Error::Status(code, _)) => code >= 200 && code < 500,
-        Err(_) => false,
+        Err(_) => {
+            #[cfg(unix)]
+            {
+                probe_url_direct_wifi(base_url, timeout_ms)
+            }
+            #[cfg(not(unix))]
+            {
+                false
+            }
+        }
     }
 }
 
@@ -299,8 +646,25 @@ pub fn get_live_url() -> String {
 pub fn detect_portal_keepalive_interval() -> Option<u64> {
     let agent = create_agent(Duration::from_millis(3000));
     let url = format!("{}/httpclient.html", get_portal_base());
-    let resp = agent.get(&url).set("User-Agent", USER_AGENT).call().ok()?;
-    let body = resp.into_string().ok()?;
+    let body = match agent
+        .get(&url)
+        .set("User-Agent", USER_AGENT)
+        .call()
+        .ok()
+        .and_then(|r| r.into_string().ok())
+    {
+        Some(b) => b,
+        None => {
+            #[cfg(unix)]
+            {
+                get_direct_wifi("/httpclient.html", Duration::from_millis(3000)).ok()?
+            }
+            #[cfg(not(unix))]
+            {
+                return None;
+            }
+        }
+    };
 
     for line in body.lines() {
         if let Some(pos) = line.find("liveReqTimeInJS") {
@@ -474,7 +838,16 @@ pub fn check_live(username: Option<&str>, retry: bool) -> bool {
                     false
                 }
             }
-            Err(_) => false,
+            Err(_) => {
+                #[cfg(unix)]
+                {
+                    query_live_direct_wifi(user, 3500)
+                }
+                #[cfg(not(unix))]
+                {
+                    false
+                }
+            }
         }
     };
 
@@ -514,14 +887,34 @@ pub fn do_login(username: &str, password: &str) -> LoginResult {
             ("producttype", "0"),
         ]);
 
-    let resp = match resp_res {
-        Ok(r) => r,
-        Err(e) => return LoginResult::Failed(format!("Portal unreachable ({})", e)),
-    };
-
-    let body = match resp.into_string() {
-        Ok(b) => b,
-        Err(e) => return LoginResult::Failed(format!("Invalid response body ({})", e)),
+    let body = match resp_res {
+        Ok(r) => match r.into_string() {
+            Ok(b) => b,
+            Err(e) => return LoginResult::Failed(format!("Invalid response body ({})", e)),
+        },
+        Err(e) => {
+            #[cfg(unix)]
+            {
+                match post_direct_wifi(
+                    "/login.xml",
+                    &[
+                        ("mode", "191"),
+                        ("username", username),
+                        ("password", password),
+                        ("a", &ts),
+                        ("producttype", "0"),
+                    ],
+                    Duration::from_millis(6000),
+                ) {
+                    Ok(b) => b,
+                    Err(_) => return LoginResult::Failed(format!("Portal unreachable ({})", e)),
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                return LoginResult::Failed(format!("Portal unreachable ({})", e));
+            }
+        }
     };
 
     let parsed = parse_xml(&body, Some(username));
@@ -609,7 +1002,7 @@ pub fn do_logout(username: Option<&str>) -> Result<String, String> {
     let agent = create_agent(Duration::from_millis(6000));
     let ts = get_timestamp().to_string();
 
-    let resp = agent
+    let resp_res = agent
         .post(&get_logout_url())
         .set("User-Agent", USER_AGENT)
         .set("Accept-Language", "en-US,en;q=0.5")
@@ -618,10 +1011,36 @@ pub fn do_logout(username: Option<&str>) -> Result<String, String> {
             ("username", user),
             ("a", &ts),
             ("producttype", "0"),
-        ])
-        .map_err(|e| format!("Portal unreachable ({})", e))?;
+        ]);
 
-    let body = resp.into_string().map_err(|e| format!("Invalid response body: {}", e))?;
+    let body = match resp_res {
+        Ok(r) => match r.into_string() {
+            Ok(b) => b,
+            Err(e) => return Err(format!("Invalid response body: {}", e)),
+        },
+        Err(e) => {
+            #[cfg(unix)]
+            {
+                match post_direct_wifi(
+                    "/logout.xml",
+                    &[
+                        ("mode", "193"),
+                        ("username", user),
+                        ("a", &ts),
+                        ("producttype", "0"),
+                    ],
+                    Duration::from_millis(5000),
+                ) {
+                    Ok(b) => b,
+                    Err(_) => return Err(format!("Portal unreachable ({})", e)),
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                return Err(format!("Portal unreachable ({})", e));
+            }
+        }
+    };
     let parsed = parse_xml(&body, Some(user));
 
     let message = parsed
@@ -733,5 +1152,23 @@ mod tests {
             let parts: Vec<&str> = ip.split('.').collect();
             assert_eq!(parts.len(), 4);
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_get_wifi_interface_name() {
+        let iface = get_wifi_interface_name();
+        // If Wi-Fi is available on host, should be non-empty name like "wlan0"
+        if let Some(name) = iface {
+            assert!(!name.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_login_result_variants() {
+        let s = LoginResult::Success("Signed in as user".to_string());
+        assert_eq!(s, LoginResult::Success("Signed in as user".to_string()));
+        let c = LoginResult::ConcurrencyLimit("529".to_string());
+        assert_ne!(s, c);
     }
 }
