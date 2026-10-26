@@ -15,6 +15,9 @@ chrono = "0.4"
 fs2 = "0.4"
 rpassword = "7.3"
 clap = { version = "4.5", features = ["derive"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls-pki-types = "1.0"
+url = "2.5"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

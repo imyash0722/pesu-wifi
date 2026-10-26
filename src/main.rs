@@ -7,7 +7,7 @@ mod wifi;
 use clap::{Parser, Subcommand};
 use std::cmp::max;
 use std::io::{self, Write};
-use ui::{color, print_err, print_info, print_ok, visual_len, BOLD, CYAN, DIM, GREEN, RED, YELLOW};
+use ui::{color, print_err, print_info, print_ok, print_warn, visual_len, BOLD, CYAN, DIM, GREEN, RED, YELLOW};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -29,9 +29,10 @@ fn cmd_status() {
         "{} {}",
         portal::get_portal_base(),
         if portal_alive {
-            color(GREEN, "[Online]")
+            let detected = portal::get_detected_keepalive_interval();
+            format!("{} ({}s keepalive)", color(GREEN, "[Online]"), detected)
         } else {
-            color(RED, "[Unreachable]")
+            color(RED, "[Unreachable]").to_string()
         }
     );
 
@@ -150,12 +151,41 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
 
     print_info(&format!("Logging in as '{}'...", username));
     match portal::do_login(&username, &password) {
-        Ok(_) => {
-            print_ok(&format!("Logged in as '{}'.", username));
+        portal::LoginResult::Success(msg) => {
+            print_ok(&format!("Logged in as '{}' ({}).", username, msg));
             daemon::notify_desktop("PESU WiFi", &format!("Logged in as {}", username), "normal");
             0
         }
-        Err(msg) => {
+        portal::LoginResult::ConcurrencyLimit(msg) | portal::LoginResult::DataLimitReached(msg) => {
+            print_err(&format!("Login failed for '{}': {}", username, msg));
+            let cfg = config::load_config();
+            let other_accounts: Vec<&String> = cfg.accounts.keys().filter(|u| *u != &username).collect();
+            if !other_accounts.is_empty() && target_user.is_none() {
+                println!(
+                    "{}",
+                    color(
+                        YELLOW,
+                        &format!(
+                            "  Hint: Found {} alternative saved account(s). Use 'pesu-wifi login <user>' or start daemon for auto-failover.",
+                            other_accounts.len()
+                        )
+                    )
+                );
+            }
+            daemon::notify_desktop("PESU WiFi Session Limit", &msg, "critical");
+            1
+        }
+        portal::LoginResult::InvalidCredentials(msg) => {
+            print_err(&format!("Invalid credentials for '{}': {}", username, msg));
+            println!("{}", color(YELLOW, "  Run 'pesu-wifi add' to update your password."));
+            daemon::notify_desktop("PESU WiFi Login Failed", &msg, "critical");
+            1
+        }
+        portal::LoginResult::AlreadyLoggedIn(msg) => {
+            print_warn(&format!("User '{}' is already logged in on another machine: {}", username, msg));
+            1
+        }
+        portal::LoginResult::Failed(msg) => {
             print_err(&format!("Login failed: {}", msg));
             daemon::notify_desktop("PESU WiFi Login Failed", &msg, "critical");
             1
@@ -538,18 +568,18 @@ mod tests {
     #[test]
     fn test_parse_xml_live_ack() {
         let xml = "<response><ack>ack</ack></response>";
-        let parsed = parse_xml(xml);
+        let parsed = parse_xml(xml, None);
         assert_eq!(parsed.get("ack").map(|s| s.as_str()), Some("ack"));
     }
 
     #[test]
     fn test_parse_xml_login_cdata() {
         let xml = "<?xml version='1.0' ?><requestresponse><status><![CDATA[LIVE]]></status><message><![CDATA[You are signed in as {username}]]></message><logoutmessage><![CDATA[You have successfully logged off]]></logoutmessage></requestresponse>";
-        let parsed = parse_xml(xml);
+        let parsed = parse_xml(xml, Some("testuser"));
         assert_eq!(parsed.get("status").map(|s| s.as_str()), Some("LIVE"));
         assert_eq!(
             parsed.get("message").map(|s| s.as_str()),
-            Some("You are signed in as {username}")
+            Some("You are signed in as testuser")
         );
         assert_eq!(
             parsed.get("logoutmessage").map(|s| s.as_str()),
@@ -560,7 +590,7 @@ mod tests {
     #[test]
     fn test_parse_xml_html_entities() {
         let xml = "<requestresponse><status><![CDATA[LOGIN]]></status><message><![CDATA[You&#39;ve signed out]]></message></requestresponse>";
-        let parsed = parse_xml(xml);
+        let parsed = parse_xml(xml, None);
         assert_eq!(parsed.get("status").map(|s| s.as_str()), Some("LOGIN"));
         assert_eq!(
             parsed.get("message").map(|s| s.as_str()),
@@ -572,7 +602,7 @@ mod tests {
     fn test_clean_message() {
         let dirty = "<![CDATA[The system could not log you on. Make sure your password is correct]]>";
         assert_eq!(
-            clean_message(dirty),
+            clean_message(dirty, None),
             "The system could not log you on. Make sure your password is correct"
         );
     }
@@ -580,7 +610,7 @@ mod tests {
     #[test]
     fn test_parse_xml_failed_status() {
         let xml = "<requestresponse><status><![CDATA[FAILED]]></status><message><![CDATA[The system could not log you on. Make sure your password is correct]]></message></requestresponse>";
-        let parsed = parse_xml(xml);
+        let parsed = parse_xml(xml, None);
         assert_eq!(parsed.get("status").map(|s| s.as_str()), Some("FAILED"));
         assert_eq!(
             parsed.get("message").map(|s| s.as_str()),

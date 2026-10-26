@@ -485,9 +485,12 @@ dependencies = [
  "libc",
  "quick-xml",
  "rpassword",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "ureq",
+ "url",
  "windows-sys 0.59.0",
 ]
 

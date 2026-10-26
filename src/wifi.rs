@@ -242,6 +242,10 @@ pub fn is_campus_ssid(ssid: &str) -> bool {
         || s.contains("PES-WIFI")
         || s.contains("PES_WIFI")
         || s.contains("PESUNIVERSITY")
+        || s.contains("AMAATRA_HOSTEL")
+        || s.contains("FOODCOURT")
+        || s.contains("PES SOUTH CAFE")
+        || s.contains("PESU-CIE")
 }
 
 pub fn get_active_wifi_ssid() -> String {
@@ -435,6 +439,10 @@ mod tests {
         assert!(is_campus_ssid("PES-WIFI"));
         assert!(is_campus_ssid("PES_WIFI"));
         assert!(is_campus_ssid("pesuniversity-guest"));
+        assert!(is_campus_ssid("AMAATRA_HOSTEL"));
+        assert!(is_campus_ssid("Foodcourt"));
+        assert!(is_campus_ssid("pes south cafe"));
+        assert!(is_campus_ssid("PESU-CIE"));
         assert!(!is_campus_ssid("Home_Network"));
         assert!(!is_campus_ssid("Space"));
         assert!(!is_campus_ssid(""));

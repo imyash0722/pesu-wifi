@@ -24,7 +24,12 @@ pub fn get_keep_alive_interval() -> u64 {
             return interval;
         }
     }
-    KEEP_ALIVE_INTERVAL
+    let detected = portal::get_detected_keepalive_interval();
+    if detected > 0 {
+        detected
+    } else {
+        KEEP_ALIVE_INTERVAL
+    }
 }
 
 pub fn calculate_jittered_interval(base_interval: u64) -> u64 {
@@ -538,6 +543,7 @@ pub fn run_daemon() -> ! {
     let mut unreachable_streak = 0;
     let mut consecutive_session_drops = 0;
     let mut just_connected = true;
+    let mut failed_accounts_in_cycle: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     loop {
         // Step 1: Wait for OS Network Event or Keepalive Watchdog Timeout
@@ -642,6 +648,7 @@ pub fn run_daemon() -> ! {
                 ));
                 unreachable_streak = 0;
             }
+            failed_accounts_in_cycle.clear();
             consecutive_session_drops = 0;
             just_connected = false;
             let jittered = calculate_jittered_interval(interval);
@@ -683,6 +690,9 @@ pub fn run_daemon() -> ! {
             continue;
         }
 
+        // Gateway is online: attempt dynamic keepalive detection if interval not explicitly configured
+        let _ = portal::detect_portal_keepalive_interval();
+
         // Gateway is online, but session expired or dropped (or newly connected)
         if unreachable_streak > 0 {
             log(&format!(
@@ -709,11 +719,13 @@ pub fn run_daemon() -> ! {
             username
         ));
         match portal::do_login(&username, &password) {
-            Ok(_) => {
+            portal::LoginResult::Success(msg) => {
+                failed_accounts_in_cycle.clear();
+                let interval = get_keep_alive_interval();
                 let jittered = calculate_jittered_interval(interval);
                 log(&format!(
-                    "✔ Authenticated successfully as '{}'. Next keepalive check in {}s.",
-                    username, jittered
+                    "✔ Authenticated successfully as '{}' ({}). Next keepalive check in {}s.",
+                    username, msg, jittered
                 ));
                 notify_desktop(
                     "PESU WiFi",
@@ -722,8 +734,63 @@ pub fn run_daemon() -> ! {
                 );
                 next_wait = Some(Duration::from_secs(jittered));
             }
-            Err(err) => {
-                log(&format!("✖ Authentication failed: {}", err));
+            portal::LoginResult::ConcurrencyLimit(err)
+            | portal::LoginResult::DataLimitReached(err)
+            | portal::LoginResult::AlreadyLoggedIn(err) => {
+                failed_accounts_in_cycle.insert(username.clone());
+                log(&format!(
+                    "⚠ Account '{}' hit session/quota limit: {}",
+                    username, err
+                ));
+
+                let cfg = config::load_config();
+                let candidate = cfg
+                    .accounts
+                    .iter()
+                    .find(|(u, _)| !failed_accounts_in_cycle.contains(*u))
+                    .map(|(u, p)| (u.clone(), p.clone()));
+
+                if let Some((next_user, next_pwd)) = candidate {
+                    log(&format!(
+                        "🔄 Multi-account failover: automatically switching from '{}' to '{}'...",
+                        username, next_user
+                    ));
+                    notify_desktop(
+                        "PESU WiFi Failover",
+                        &format!("Switched from {} to {} (limit reached)", username, next_user),
+                        "normal",
+                    );
+                    username = next_user.clone();
+                    password = next_pwd;
+                    let mut updated_cfg = cfg.clone();
+                    updated_cfg.active_user = Some(next_user);
+                    let _ = config::save_config(&updated_cfg);
+                    next_wait = Some(Duration::from_millis(200));
+                } else {
+                    log("✖ All configured accounts have reached session/quota limits.");
+                    notify_desktop(
+                        "PESU WiFi Limit Reached",
+                        "All configured accounts have reached session/quota limits.",
+                        "critical",
+                    );
+                    failed_accounts_in_cycle.clear();
+                    next_wait = Some(Duration::from_secs(30));
+                }
+            }
+            portal::LoginResult::InvalidCredentials(err) => {
+                log(&format!(
+                    "✖ Invalid credentials for '{}': {}. Run 'pesu-wifi add' to update.",
+                    username, err
+                ));
+                notify_desktop(
+                    "PESU WiFi Login Failed",
+                    &format!("Invalid credentials for {}. Check your password.", username),
+                    "critical",
+                );
+                next_wait = Some(Duration::from_secs(60));
+            }
+            portal::LoginResult::Failed(err) => {
+                log(&format!("✖ Authentication attempt failed: {}. Retrying in 10s...", err));
                 notify_desktop("PESU WiFi Login Failed", &err, "critical");
                 next_wait = Some(Duration::from_secs(10));
             }
