@@ -48,18 +48,24 @@ A blazing fast, native Rust automated captive portal login manager and keepalive
 
 ### Windows (10 / 11)
 
-#### Option 1: PowerShell One-Click Setup (Recommended)
+#### Option 1: Standalone `.exe` Setup Wizard (Recommended)
+Download and run **[`pesu-wifi-v3.6.0-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/download/v3.6.0/pesu-wifi-v3.6.0-windows-x86_64-setup.exe)** from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases).
+- Automatic per-user installation (no admin / UAC prompt required).
+- Configures user `PATH` and background watchdog autostart automatically.
+- Includes clean Start Menu shortcuts and Control Panel uninstaller.
+
+#### Option 2: PowerShell One-Click Setup
 Run in PowerShell (as your regular user):
 ```powershell
 irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
 
-#### Option 2: Scoop Package Manager
+#### Option 3: Scoop Package Manager
 ```powershell
 scoop install https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/contrib/pesu-wifi.json
 ```
 
-#### Option 3: Pre-compiled Standalone Executable
+#### Option 4: Portable Standalone Executable (.zip)
 Download `pesu-wifi-v3.6.0-windows-x86_64.zip` from [GitHub Releases](https://github.com/imyash0722/pesu-wifi/releases), extract `pesu-wifi.exe`, and add it to your `PATH`.
 
 ---

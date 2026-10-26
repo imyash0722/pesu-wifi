@@ -48,7 +48,7 @@ jobs:
           cp -r completions "$DIST/"
           tar -czvf "${DIST}.tar.gz" "$DIST"
 
-      - name: Package Windows Artifacts
+      - name: Package Windows Artifacts & Setup Installer
         if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
@@ -60,6 +60,22 @@ jobs:
           Copy-Item README.md -Destination $dist/
           Copy-Item LICENSE -Destination $dist/
           Compress-Archive -Path $dist -DestinationPath "${dist}.zip"
+
+          # Compile Inno Setup Windows .exe Installer
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+              if (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe") {
+                  $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+              } elseif (Test-Path "C:\Program Files\Inno Setup 6\ISCC.exe") {
+                  $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe"
+              } else {
+                  choco install innosetup --no-progress
+                  $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+              }
+          }
+          Write-Host "Building Windows .exe installer with $iscc..."
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          & $iscc /DAppVersion="$ver" installer.iss
 
       - name: Upload Linux Dist
         if: matrix.os == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/v')
@@ -73,7 +89,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-dist
-          path: pesu-wifi-*-windows-x86_64.zip
+          path: |
+            pesu-wifi-*-windows-x86_64.zip
+            dist/*.exe
 
   publish:
     name: Publish Release
@@ -93,6 +111,7 @@ jobs:
           mkdir -p release_assets
           find dist -name "*.tar.gz" -exec cp {} release_assets/ \;
           find dist -name "*.zip" -exec cp {} release_assets/ \;
+          find dist -name "*.exe" -exec cp {} release_assets/ \;
           cp install.sh release_assets/
           cp install.ps1 release_assets/
           cd release_assets
