@@ -91,10 +91,7 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
         .create(true)
         .open(&lock_path)
     {
-        if file.try_lock_exclusive().is_ok() {
-            let _ = file.unlock();
-            return (false, None);
-        } else {
+        if file.try_lock_exclusive().is_err() {
             // Lock is held; try reading PID from lockfile
             use std::io::Read;
             let mut content = String::new();
@@ -103,13 +100,16 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
                     return (true, Some(pid));
                 }
             }
+            return (true, None);
+        } else {
+            let _ = file.unlock();
         }
     }
 
-    // Lock was held: fallback to process table query
+    // Process table query fallback
     #[cfg(unix)]
     if let Ok(out) = Command::new("pgrep")
-        .args(["-f", "pesu[-_]wifi.*daemon"])
+        .args(["-f", "pesu[-_]wifi.*(daemon|start)"])
         .output()
     {
         let stdout = String::from_utf8_lossy(&out.stdout);
@@ -924,11 +924,15 @@ pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
 
     let _ = Command::new("systemctl")
+        .args(["stop", "pesu-wifi.service"])
+        .output();
+
+    let _ = Command::new("systemctl")
         .args(["--user", "stop", "pesu-wifi.service"])
         .output();
 
     let _ = Command::new("pkill")
-        .args(["-f", "pesu[-_]wifi.*daemon"])
+        .args(["-f", "pesu[-_]wifi.*(daemon|start)"])
         .output();
 
     sleep(Duration::from_millis(500));
