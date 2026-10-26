@@ -483,6 +483,7 @@ enum Commands {
     },
 
     /// Save or update login credentials
+    #[command(alias = "init", alias = "set")]
     Add {
         /// Optional username
         username: Option<String>,
@@ -491,12 +492,14 @@ enum Commands {
     },
 
     /// Remove a saved account
+    #[command(alias = "rm", alias = "remove", alias = "delete")]
     Del {
         /// Username to delete
         username: Option<String>,
     },
 
     /// List saved accounts (-p to show passwords)
+    #[command(alias = "ls")]
     List {
         /// Show passwords
         #[arg(short = 'p', long = "passwords")]
