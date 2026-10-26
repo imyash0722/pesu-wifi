@@ -1,15 +1,24 @@
-name: CI
+name: CI & Release
 
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  test:
-    name: Test & Build
-    runs-on: ubuntu-latest
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -24,3 +33,74 @@ jobs:
 
       - name: Build release binary
         run: cargo build --release --verbose
+
+      - name: Package Linux Artifacts
+        if: matrix.os == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          DIST="pesu-wifi-v${VERSION}-linux-x86_64"
+          mkdir -p "$DIST"
+          cp target/release/pesu-wifi "$DIST/"
+          cp install.sh "$DIST/"
+          cp pesu-wifi.service "$DIST/"
+          cp README.md "$DIST/"
+          cp LICENSE "$DIST/"
+          cp -r completions "$DIST/"
+          tar -czvf "${DIST}.tar.gz" "$DIST"
+
+      - name: Package Windows Artifacts
+        if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $ver = $env:GITHUB_REF -replace '^refs/tags/v', ''
+          $dist = "pesu-wifi-v${ver}-windows-x86_64"
+          New-Item -ItemType Directory -Path $dist
+          Copy-Item target/release/pesu-wifi.exe -Destination $dist/
+          Copy-Item install.ps1 -Destination $dist/
+          Copy-Item README.md -Destination $dist/
+          Copy-Item LICENSE -Destination $dist/
+          Compress-Archive -Path $dist -DestinationPath "${dist}.zip"
+
+      - name: Upload Linux Dist
+        if: matrix.os == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-dist
+          path: pesu-wifi-*-linux-x86_64.tar.gz
+
+      - name: Upload Windows Dist
+        if: matrix.os == 'windows-latest' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-dist
+          path: pesu-wifi-*-windows-x86_64.zip
+
+  publish:
+    name: Publish Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Prepare Assets & Checksums
+        run: |
+          mkdir -p release_assets
+          find dist -name "*.tar.gz" -exec cp {} release_assets/ \;
+          find dist -name "*.zip" -exec cp {} release_assets/ \;
+          cp install.sh release_assets/
+          cp install.ps1 release_assets/
+          cd release_assets
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_assets/*
+          generate_release_notes: true
