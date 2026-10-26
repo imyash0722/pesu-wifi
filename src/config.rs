@@ -241,6 +241,8 @@ mod tests {
         let temp_dir = std::env::temp_dir().join(format!("pesu_test_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&temp_dir);
         std::env::set_var("XDG_CONFIG_HOME", &temp_dir);
+        #[cfg(windows)]
+        std::env::set_var("APPDATA", &temp_dir);
 
         let mut accounts = HashMap::new();
         accounts.insert("PES2UG25CS000".to_string(), "secretPass123".to_string());
