@@ -33,14 +33,14 @@ export const App: React.FC = () => {
 
           {/* Subtitle */}
           <p className="mt-6 text-base sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed font-normal">
-            Automated 1-tap sign-in and continuous 120s jittered keepalive for PES University Cyberroam gateways. Built with native Android foreground architecture to survive deep sleep, AP roaming, and active VPN tunnels.
+            Automated sign-in and continuous jittered keepalive for PES University Cyberroam gateways. Built natively across Android, Windows, Linux, and iOS to survive deep sleep, AP roaming, and active VPN tunnels.
           </p>
 
           {/* Call to Actions */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <a href="#download">
               <ShinyButton variant="primary" icon={<Download className="w-5 h-5" />} className="text-base px-7 py-3.5">
-                Download Latest APK (v1.7.5)
+                Download v3.7.0 Releases
               </ShinyButton>
             </a>
 
