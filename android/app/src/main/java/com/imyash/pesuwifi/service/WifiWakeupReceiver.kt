@@ -83,15 +83,20 @@ class WifiWakeupReceiver : BroadcastReceiver() {
             } else null
 
             val network: Network? = portalRepo.getWifiNetwork()
-                ?: networkFromIntent?.takeIf { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true }
-                ?: cm.activeNetwork
+                ?: networkFromIntent?.takeIf {
+                    val c = cm.getNetworkCapabilities(it)
+                    c?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
+                        !c.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                }
 
-            val caps: NetworkCapabilities? = if (network != null) {
-                cm.getNetworkCapabilities(network)
-            } else null
+            if (network == null) {
+                AppLogger.d(TAG, "Non-Wi-Fi network event, ignoring.")
+                return
+            }
 
-            val isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true ||
-                    portalRepo.getWifiNetwork() != null
+            val caps: NetworkCapabilities? = cm.getNetworkCapabilities(network)
+            val isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
 
             if (!isWifi) {
                 AppLogger.d(TAG, "Non-Wi-Fi network event, ignoring.")

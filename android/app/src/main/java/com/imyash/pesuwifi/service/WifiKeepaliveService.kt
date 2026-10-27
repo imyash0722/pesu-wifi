@@ -502,6 +502,8 @@ class WifiKeepaliveService : Service() {
                     updateForegroundNotification()
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.e(TAG, "Keepalive check failed: ${e.message}", e)
         }

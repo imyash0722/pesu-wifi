@@ -12,8 +12,8 @@ android {
         applicationId = "com.imyash.pesuwifi"
         minSdk = 26
         targetSdk = 34
-        versionCode = 27
-        versionName = "3.7.3"
+        versionCode = 28
+        versionName = "3.7.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

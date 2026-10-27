@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.4 — Roaming Portal Resolution, VPN Interface Isolation & Staged Auto-Reauth](#v374--roaming-portal-resolution-vpn-interface-isolation--staged-auto-reauth)
+  - [Overview & Major Highlights](#v374-overview--major-highlights)
 - [v3.7.3 — Resilient Fallback DNS for Updater, 3-Tier VPN Socket Escalation & Permanent Keystore](#v373--resilient-fallback-dns-for-updater-3-tier-vpn-socket-escalation--permanent-keystore)
   - [Overview & Major Highlights](#v373-overview--major-highlights)
 - [v3.7.2 — Dual-Gateway Discovery, Kernel VPN Bypass Binding & Flapping Fix](#v372--dual-gateway-discovery-kernel-vpn-bypass-binding--flapping-fix)
@@ -27,6 +29,32 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.4 — Roaming Portal Resolution, VPN Interface Isolation & Staged Auto-Reauth
+
+**Release Date:** October 28, 2026  
+**Git Tag:** [`v3.7.4`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.4)  
+**Release Type:** Critical Roaming & VPN Network Isolation Fix (Android)
+
+### v3.7.4 Overview & Major Highlights
+
+#### 1. Strict Physical Wi-Fi Interface & IP Isolation (Fixes VPN Interface Capture)
+- **Root Cause:** When Tailscale or ProtonVPN was active over Wi-Fi, Android marked the VPN network with both `TRANSPORT_VPN` and `TRANSPORT_WIFI`. `getWifiNetwork()` selected the VPN network, extracting Tailscale's CGNAT address (`100.x.x.x`) and calling `bindProcessToNetwork` on `tun0`. All subsequent portal requests were trapped inside the VPN tunnel and failed with `ENETUNREACH`.
+- **Solution:** Hardened `getWifiNetwork()` to strictly require `!hasTransport(TRANSPORT_VPN)` and reject non-`wlan` interfaces. Hardened `getWifiLocalAddress()` to reject `100.64.0.0/10` CGNAT VPN addresses and `tun`/`wg` interfaces, ensuring Tier 2 fallback sockets only bind to genuine Wi-Fi IP addresses (`10.x.x.x`, `172.16.x.x`).
+
+#### 2. Campus vs. Amaatra Portal Resolution Priority (Fixes Foodcourt 4s Timeout)
+- **Root Cause:** In the Foodcourt AP subnet (`172.16.88.x`, gateway `172.16.88.1`), `resolvePortalBase()` matched `gw.startsWith("172.16.")` and incorrectly targeted `http://172.16.88.1:8090/login.xml`. Because `172.16.88.1` is a Cisco router gateway and not a Cyberoam server, all login requests hung for 4000ms until timeout.
+- **Solution:** Reordered `resolvePortalBase()` to prioritize SSID matching (`Foodcourt`, `PESU-EC-Campus`, `pes south cafe`) and campus DNS (`192.168.3.2`). Only route to Amaatra portal bases when SSID is `AMAATRA-HOSTEL` or gateway is explicitly `172.16.1.1` / `172.16.0.1`. Foodcourt subnets now correctly target the central campus Cyberoam portal (`http://192.168.254.1:8090`).
+
+#### 3. Eliminated False `loggedIn` Flag During Active VPN Sessions
+- **Root Cause:** When Cyberoam returned `ack='nack'` (device unauthenticated), `refreshStatus()` checked `NetworkCapabilities.NET_CAPABILITY_VALIDATED`. If a VPN was active, Android reported the network as validated, causing `refreshStatus()` to falsely set `loggedIn=true` and suppress auto-reauthentication.
+- **Solution:** If `vpnActive` is true, OS validation flags are strictly ignored when Cyberoam reports `nack`. The session remains `loggedIn=false`, immediately triggering auto-authentication.
+
+#### 4. Disconnected Wi-Fi State Protection & Silent Coroutine Cancellations
+- **Root Cause:** Network change callbacks received when Wi-Fi was disconnected triggered `login()` over cellular or VPN, causing unnecessary 4-second socket timeouts. Also, normal coroutine cancellations during AP roaming dumped `JobCancellationException` error logs.
+- **Solution:** `login()` and `logout()` immediately return early if `wifiNet == null`. Handled `CancellationException` in keepalive check loop to suppress false error noise.
 
 ---
 

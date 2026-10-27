@@ -43,7 +43,11 @@ class ResilientSocketFactory(
                 msg.contains("network is down") ||
                 msg.contains("network is unreachable") ||
                 msg.contains("no route to host") ||
-                msg.contains("socket failed")
+                msg.contains("socket failed") ||
+                msg.contains("enetunreach") ||
+                msg.contains("ehostunreach") ||
+                msg.contains("econnrefused") ||
+                msg.contains("econnaborted")
         }
     }
 

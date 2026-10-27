@@ -57,20 +57,39 @@ class PortalRepository(
 
     fun getWifiLocalAddress(wifiNet: Network? = null): InetAddress? {
         val net = wifiNet ?: getWifiNetwork() ?: return null
+        val caps = connectivityManager?.getNetworkCapabilities(net) ?: return null
+        if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return null
+
         val lp = connectivityManager?.getLinkProperties(net) ?: return null
+        val iface = lp.interfaceName ?: ""
+        if (iface.startsWith("tun") || iface.startsWith("wg") || iface.startsWith("ppp")) {
+            return null
+        }
+
         return lp.linkAddresses.map { it.address }
-            .firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
+            .firstOrNull { it is Inet4Address && !it.isLoopbackAddress && !it.isLinkLocalAddress }
+            ?.takeIf { addr ->
+                // Guard against CGNAT VPN addresses (100.64.0.0/10) such as Tailscale
+                val octets = addr.address.map { it.toInt() and 0xFF }
+                !(octets.size == 4 && octets[0] == 100 && octets[1] in 64..127)
+            }
     }
 
     /**
-     * Resolves the active Wi-Fi Network instance across all available network interfaces.
-     * This avoids the cm.activeNetwork pitfall where Mobile Data is default when Wi-Fi is unvalidated.
+     * Resolves the active physical Wi-Fi Network instance across all available network interfaces.
+     * Strictly filters out VPN networks that also declare TRANSPORT_WIFI as their underlying transport.
      */
     fun getWifiNetwork(): Network? {
         val cm = connectivityManager ?: return null
         return cm.allNetworks.firstOrNull { network ->
             val caps = cm.getNetworkCapabilities(network) ?: return@firstOrNull false
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+            val lp = cm.getLinkProperties(network)
+            val iface = lp?.interfaceName ?: ""
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                !iface.startsWith("tun") &&
+                !iface.startsWith("wg") &&
+                !iface.startsWith("ppp")
         }
     }
 
@@ -219,33 +238,44 @@ class PortalRepository(
         // 1. If dynamically detected via redirect or active candidate probe on this connection, reuse it
         PortalApi.detectedPortalBase?.let { return it }
 
+        val ssid = getCurrentWifiSsid(wifiNet)
         val gw = getDefaultGateway(wifiNet)
 
-        // 2. Gateway-specific matching
-        if (gw != null) {
-            // Amaatra Hostel gateway
-            if (gw == "172.16.1.1" || gw.startsWith("172.16.")) {
-                return "http://$gw:8090"
+        // 2. Explicit SSID-based matching (Highest Priority)
+        if (ssid != null) {
+            if (ssid.equals("AMAATRA-HOSTEL", ignoreCase = true) || ssid.contains("AMAATRA", ignoreCase = true)) {
+                return if (gw == "172.16.1.1" || gw == "172.16.0.1" || gw == "192.168.1.1") "http://$gw:8090" else PortalApi.AMAATRA_PORTAL_BASE
             }
-            // PESU EC/RR direct gateway or internal 10.* VLAN routing -> Cyberoam is at 192.168.254.1:8090
-            if (gw.startsWith("192.168.254.") || gw.startsWith("10.")) {
+            if (ssid.contains("PESU", ignoreCase = true) ||
+                ssid.equals("Foodcourt", ignoreCase = true) ||
+                ssid.contains("cafe", ignoreCase = true) ||
+                ssid.contains("CIE", ignoreCase = true)) {
                 return PortalApi.DEFAULT_PORTAL_BASE
+            }
+        }
+
+        // 3. DNS-based matching: if campus DNS (192.168.3.2) is present, it's EC/RR Campus
+        val targetNet = wifiNet ?: getWifiNetwork()
+        val dnsServers = targetNet?.let { connectivityManager?.getLinkProperties(it)?.dnsServers } ?: emptyList()
+        if (dnsServers.any { it.hostAddress == "192.168.3.2" }) {
+            return PortalApi.DEFAULT_PORTAL_BASE
+        }
+
+        // 4. Gateway-specific matching
+        if (gw != null) {
+            if (gw == "172.16.1.1" || gw == "172.16.0.1") {
+                return PortalApi.AMAATRA_PORTAL_BASE
             }
             if (gw == "192.168.1.1") {
                 return PortalApi.AMAATRA_LEGACY_BASE
             }
+            // PESU EC/RR direct gateway or internal 10.* / 172.16.* VLAN routing -> Cyberoam is at 192.168.254.1:8090
+            if (gw.startsWith("192.168.254.") || gw.startsWith("10.") || gw.startsWith("172.16.")) {
+                return PortalApi.DEFAULT_PORTAL_BASE
+            }
         }
 
-        // 3. Fallback: check SSID match if SSID is known
-        val ssid = getCurrentWifiSsid(wifiNet)
-        if (ssid != null && ssid.equals("AMAATRA-HOSTEL", ignoreCase = true)) {
-            return if (gw != null && gw.startsWith("172.16.")) "http://$gw:8090" else PortalApi.AMAATRA_PORTAL_BASE
-        }
-        if (ssid != null && (ssid.contains("PESU", ignoreCase = true) || ssid.equals("Foodcourt", ignoreCase = true) || ssid.equals("pes south cafe", ignoreCase = true))) {
-            return PortalApi.DEFAULT_PORTAL_BASE
-        }
-
-        // 4. Default fallback: EC/RR campus Cyberoam gateway
+        // 5. Default fallback: EC/RR campus Cyberoam gateway
         return PortalApi.DEFAULT_PORTAL_BASE
     }
 
@@ -301,7 +331,7 @@ class PortalRepository(
         val isCampus = isCampusNetwork(wifiNet)
 
         val candidateGateways = listOfNotNull(
-            gw?.let { "http://$it:8090" }
+            gw?.takeIf { it == "172.16.1.1" || it == "172.16.0.1" || it == "192.168.254.1" || it == "192.168.1.1" }?.let { "http://$it:8090" }
         )
         val start = System.currentTimeMillis()
         val portalUp = api.isPortalOnline(candidateGateways)
@@ -404,12 +434,18 @@ class PortalRepository(
                 }
             }
         } else {
+            // When checkLive is false (ack="nack"), device is NOT authenticated as targetUser.
+            // When VPN is active, Android's NET_CAPABILITY_VALIDATED is a false positive
+            // caused by the VPN tunnel, NOT genuine Wi-Fi portal authorization!
             val caps = connectivityManager?.getNetworkCapabilities(wifiNet)
             val isValidated = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
             val isCaptive = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true
-            if (!isExplicitLogout && isValidated && !isCaptive) {
-                AppLogger.i("PortalRepository", "refreshStatus: checkLive returned false for '$targetUser', but Android confirms network is VALIDATED. Preserving loggedIn=true.")
-                loggedIn = true
+            if (!vpnActive && !isExplicitLogout && isValidated && !isCaptive) {
+                val directProbe = api.verifyInternetConnectivity()
+                if (directProbe == PortalApi.InternetProbeResult.ONLINE) {
+                    AppLogger.i("PortalRepository", "refreshStatus: checkLive returned false for '$targetUser', but direct Wi-Fi internet is validated. Preserving loggedIn=true.")
+                    loggedIn = true
+                }
             }
             consecutiveProbeFailures = 0
         }
@@ -458,13 +494,15 @@ class PortalRepository(
     suspend fun login(targetUsername: String? = null): Result<String> = withContext(Dispatchers.IO) {
         isExplicitLogout = false
         val wifiNet = getWifiNetwork()
-        if (wifiNet != null) {
-            try {
-                connectivityManager?.bindProcessToNetwork(wifiNet)
-            } catch (_: Exception) {}
+        if (wifiNet == null) {
+            AppLogger.d("PortalRepository", "Login aborted: Wi-Fi is not connected")
+            return@withContext Result.failure<String>(Exception("Wi-Fi is not connected"))
         }
+        try {
+            connectivityManager?.bindProcessToNetwork(wifiNet)
+        } catch (_: Exception) {}
         api.portalBaseUrl = resolvePortalBase(wifiNet)
-        api.setWifiSocketFactory(wifiNet?.socketFactory, getWifiLocalAddress(wifiNet))
+        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
         val username = targetUsername ?: accountRepository.getActiveUser()
             ?: run {
@@ -542,13 +580,19 @@ class PortalRepository(
     suspend fun logout(): Result<String> = withContext(Dispatchers.IO) {
         isExplicitLogout = true
         val wifiNet = getWifiNetwork()
-        if (wifiNet != null) {
-            try {
-                connectivityManager?.bindProcessToNetwork(wifiNet)
-            } catch (_: Exception) {}
+        if (wifiNet == null) {
+            AppLogger.d("PortalRepository", "Logout: Wi-Fi is not connected, clearing session locally")
+            _statusFlow.value = _statusFlow.value.copy(
+                isLoggedIn = false,
+                statusMessage = "Wi-Fi disconnected (Logged out)"
+            )
+            return@withContext Result.success("Logged out locally (Wi-Fi disconnected)")
         }
+        try {
+            connectivityManager?.bindProcessToNetwork(wifiNet)
+        } catch (_: Exception) {}
         api.portalBaseUrl = resolvePortalBase(wifiNet)
-        api.setWifiSocketFactory(wifiNet?.socketFactory, getWifiLocalAddress(wifiNet))
+        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
         // Immediately update statusFlow so UI switches to disconnected state without waiting
         val current = _statusFlow.value

@@ -5,7 +5,7 @@ import { ShinyButton } from './ShinyButton';
 import { CommandBlock } from './CommandBlock';
 
 export const DownloadSection: React.FC = () => {
-  const version = 'v3.7.3';
+  const version = 'v3.7.4';
   const baseUrl = `https://github.com/imyash0722/pesu-wifi/releases/download/${version}`;
 
   const androidStableUrl = `${baseUrl}/pesu-wifi-${version}-android-stable.apk`;
@@ -74,6 +74,9 @@ export const DownloadSection: React.FC = () => {
                   Download Tester APK (Logs)
                 </ShinyButton>
               </a>
+              <p className="text-[11px] text-slate-400 text-center pt-1 leading-normal">
+                Upgrading from ≤v3.7.1? Please uninstall the old version once before installing v3.7.3 due to the new permanent signing key.
+              </p>
             </div>
           </div>
         </SpotlightCard>
