@@ -32,10 +32,14 @@ object WifiSuggestionManager {
         SuggestionTarget("PESU-CIE", null),
         SuggestionTarget("AMAATRA-HOSTEL", "SouthPe$!t"),
         SuggestionTarget("AMAATRA-HOSTEL", null),
+        SuggestionTarget("AMAATRA_HOSTEL", "SouthPe$!t"),
+        SuggestionTarget("AMAATRA_HOSTEL", null),
         SuggestionTarget("Foodcourt", "PESU-EC-Campus"),
         SuggestionTarget("Foodcourt", null),
         SuggestionTarget("pes south cafe", "PESU-EC-Campus"),
-        SuggestionTarget("pes south cafe", null)
+        SuggestionTarget("pes south cafe", null),
+        SuggestionTarget("PES-WIFI", null),
+        SuggestionTarget("PES_WIFI", null)
     )
 
     @Volatile

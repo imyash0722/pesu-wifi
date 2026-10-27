@@ -135,7 +135,13 @@ object BssidDatabase {
     fun isCampusBssid(context: Context, bssid: String?): Boolean {
         if (bssid.isNullOrBlank() || bssid == "02:00:00:00:00:00") return false
         ensureInitialized(context)
-        return cache.containsKey(bssid.lowercase().trim())
+        val norm = bssid.lowercase().trim()
+        if (cache.containsKey(norm)) return true
+        // Check campus enterprise AP OUI prefixes (Cisco / Meraki deployed across campus)
+        if (norm.startsWith("c8:a6:08:") || norm.startsWith("b4:79:c8:")) {
+            return true
+        }
+        return false
     }
 
     /**

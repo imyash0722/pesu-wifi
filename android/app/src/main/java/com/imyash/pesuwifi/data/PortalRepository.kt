@@ -141,7 +141,16 @@ class PortalRepository(
     fun isCampusSsid(ssid: String?): Boolean {
         if (ssid.isNullOrBlank()) return false
         val clean = ssid.replace("\"", "").trim()
-        return CAMPUS_SSIDS.any { it.equals(clean, ignoreCase = true) }
+        if (CAMPUS_SSIDS.any { it.equals(clean, ignoreCase = true) }) return true
+        val upper = clean.uppercase()
+        return upper.contains("PESU") ||
+                upper.contains("PES-WIFI") ||
+                upper.contains("PES_WIFI") ||
+                upper.contains("PESUNIVERSITY") ||
+                upper.contains("AMAATRA") ||
+                upper.contains("FOODCOURT") ||
+                upper.contains("PES SOUTH CAFE") ||
+                upper.contains("PESU-CIE")
     }
 
     /**
@@ -617,11 +626,15 @@ class PortalRepository(
     companion object {
         val CAMPUS_SSIDS = setOf(
             "AMAATRA-HOSTEL",
+            "AMAATRA_HOSTEL",
             "Foodcourt",
             "PESU-EC-Campus",
             "PESU-RR-Campus",
             "PESU-CIE",
-            "pes south cafe"
+            "pes south cafe",
+            "PES-WIFI",
+            "PES_WIFI",
+            "pesuniversity-guest"
         )
 
         @Volatile

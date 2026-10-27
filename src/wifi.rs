@@ -242,7 +242,7 @@ pub fn is_campus_ssid(ssid: &str) -> bool {
         || s.contains("PES-WIFI")
         || s.contains("PES_WIFI")
         || s.contains("PESUNIVERSITY")
-        || s.contains("AMAATRA_HOSTEL")
+        || s.contains("AMAATRA")
         || s.contains("FOODCOURT")
         || s.contains("PES SOUTH CAFE")
         || s.contains("PESU-CIE")
@@ -507,6 +507,7 @@ mod tests {
         assert!(is_campus_ssid("PES_WIFI"));
         assert!(is_campus_ssid("pesuniversity-guest"));
         assert!(is_campus_ssid("AMAATRA_HOSTEL"));
+        assert!(is_campus_ssid("AMAATRA-HOSTEL"));
         assert!(is_campus_ssid("Foodcourt"));
         assert!(is_campus_ssid("pes south cafe"));
         assert!(is_campus_ssid("PESU-CIE"));

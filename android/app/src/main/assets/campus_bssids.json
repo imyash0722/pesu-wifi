@@ -88,5 +88,266 @@
     "gateway": "10.1.0.1",
     "tag": "GJBC East AP (2.4G Pair)",
     "lastSeen": 1757999000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:80:6c",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 128,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP (5G)",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:80:68",
+    "ssid": "PESU-EC-Campus",
+    "band": "2.4GHz",
+    "channel": 1,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP (2.4G)",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:21:28",
+    "ssid": "PESU-EC-Campus",
+    "band": "2.4GHz",
+    "channel": 6,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt / EC Campus AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:20:c8",
+    "ssid": "PESU-EC-Campus",
+    "band": "2.4GHz",
+    "channel": 1,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP 2",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:80:d8",
+    "ssid": "PESU-EC-Campus",
+    "band": "2.4GHz",
+    "channel": 11,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP 3",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:80:dc",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 116,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP 3 (5G)",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:80:60",
+    "ssid": "PESU-EC-Campus",
+    "band": "2.4GHz",
+    "channel": 1,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP 4",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "b4:79:c8:2f:21:20",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 36,
+    "gateway": "172.16.88.1",
+    "tag": "Foodcourt AP (5G Pair)",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1a:50",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 52,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1a:70",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 56,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1a:b0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 60,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1c:30",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 104,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC Corridor AP 2",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1d:c0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 112,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1e:20",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 120,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1e:70",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 124,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1f:60",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 132,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:1f:80",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 136,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:21:b0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 140,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:26:70",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 144,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:26:d0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 149,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:26:e0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 153,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:27:50",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 157,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:92:27:70",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 161,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:95:ac:00",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 165,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:b8:12:10",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 48,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:b8:25:00",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 44,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:b8:25:40",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 40,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:b8:62:c0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 36,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
+  },
+  {
+    "bssid": "c8:a6:08:b8:62:e0",
+    "ssid": "PESU-EC-Campus",
+    "band": "5GHz",
+    "channel": 52,
+    "gateway": "10.1.0.1",
+    "tag": "GJBC AP",
+    "lastSeen": 1761580000000
   }
 ]

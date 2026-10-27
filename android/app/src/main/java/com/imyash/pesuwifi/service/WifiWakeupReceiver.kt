@@ -128,7 +128,13 @@ class WifiWakeupReceiver : BroadcastReceiver() {
                 AppLogger.roam(TAG, "Router gateway ping: success=$pingOk")
             }
 
-            val isCampus = portalRepo.isCampusNetwork(network)
+            var isCampus = portalRepo.isCampusNetwork(network)
+            if (!isCampus && (currentSsid == null || portalRepo.isCampusSsid(currentSsid))) {
+                if (portalRepo.api.isPortalOnline()) {
+                    AppLogger.i(TAG, "isCampusNetwork initial check was false (SSID='$currentSsid'), but Cyberoam portal is ONLINE. Confirming campus network.")
+                    isCampus = true
+                }
+            }
             val isCaptivePortal = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true
             val isValidated = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
 
@@ -146,10 +152,10 @@ class WifiWakeupReceiver : BroadcastReceiver() {
                 val activeUser = accountRepo.getActiveUser()
 
                 if ((!status.isLoggedIn || isCaptivePortal) && activeUser != null) {
-                    if (isValidated && !isCaptivePortal) {
+                    if (isValidated && !isCaptivePortal && !status.isVpnActive) {
                         AppLogger.i(TAG, "Network is already VALIDATED and online. Skipping auto-authentication.")
                     } else {
-                        AppLogger.i(TAG, "Campus network active (isLoggedIn=${status.isLoggedIn}, isCaptivePortal=$isCaptivePortal, isValidated=$isValidated): auto-authenticating as $activeUser")
+                        AppLogger.i(TAG, "Campus network active (isLoggedIn=${status.isLoggedIn}, isCaptivePortal=$isCaptivePortal, isValidated=$isValidated, vpnActive=${status.isVpnActive}): auto-authenticating as $activeUser")
                         val result = portalRepo.login(activeUser)
                         if (result.isSuccess) {
                             AppLogger.i(TAG, "Auto-authentication SUCCESS for $activeUser via OS wakeup rule!")

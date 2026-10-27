@@ -68,6 +68,7 @@ object SystemRuleManager {
 
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                 .build()
 
             val pendingIntent = getPendingIntent(context)

@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.5 — Comprehensive AP Catalog (40 APs), OUI Matching & Wildcard Campus SSIDs](#v375--comprehensive-ap-catalog-40-aps-oui-matching--wildcard-campus-ssids)
+  - [Overview & Major Highlights](#v375-overview--major-highlights)
 - [v3.7.4 — Roaming Portal Resolution, VPN Interface Isolation & Staged Auto-Reauth](#v374--roaming-portal-resolution-vpn-interface-isolation--staged-auto-reauth)
   - [Overview & Major Highlights](#v374-overview--major-highlights)
 - [v3.7.3 — Resilient Fallback DNS for Updater, 3-Tier VPN Socket Escalation & Permanent Keystore](#v373--resilient-fallback-dns-for-updater-3-tier-vpn-socket-escalation--permanent-keystore)
@@ -29,6 +31,31 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.5 — Comprehensive AP Catalog (40 APs), OUI Matching & Wildcard Campus SSIDs
+
+**Release Date:** October 28, 2026  
+**Git Tag:** [`v3.7.5`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.5)  
+**Release Type:** BSSID Catalog Expansion, Zero-Latency OUI Matching & SSID Allowlist Robustness
+
+### v3.7.5 Overview & Major Highlights
+
+#### 1. Pre-Loaded Campus AP Baseline Expanded (10 -> 40 APs)
+- **Problem:** `campus_bssids.json` only bundled 10 APs from GJBC (`c8:a6:08:*`), omitting Foodcourt, MRD, Library, and South Cafe APs (`b4:79:c8:*`). On fresh installs or roaming under Android 12+ location redaction, devices entering the foodcourt failed BSSID recognition and entered standby.
+- **Solution:** Added 30 additional verified campus APs to `campus_bssids.json`, covering dual-band 2.4GHz & 5GHz radios across the Foodcourt (`172.16.88.x`) and GJBC wings (`10.1.0.x`).
+
+#### 2. Enterprise OUI Prefix Recognition in BSSID Database
+- Added instant zero-latency OUI matching for known PESU enterprise access point hardware (`c8:a6:08:` Cisco Aironet/Catalyst and `b4:79:c8:` Cisco/Meraki). Any present or future AP installed on campus with these OUIs is instantly recognized without requiring prior discovery.
+
+#### 3. Wildcard & Substring Campus SSID Matching
+- **Problem:** `PortalRepository.isCampusSsid` previously performed exact equality checks against a static 6-item set, missing `AMAATRA_HOSTEL` (underscore), `PES-WIFI`, `PES_WIFI`, and `pesuniversity-guest`.
+- **Solution:** Added substring keyword matching across Android and Rust (`s.contains("AMAATRA")`, `PESU`, `PES-WIFI`, `PES_WIFI`, `FOODCOURT`, `PES SOUTH CAFE`), matching all variants regardless of casing or formatting. Added suggestions for all profiles in `WifiSuggestionManager`.
+
+#### 4. Ground-Truth Portal Probe Fallback & Wakeup VPN Bypass
+- In `WifiWakeupReceiver`, if OS network callbacks deliver a redacted SSID/BSSID and DHCP routes are still stabilizing, a fast portal reachability probe (`isPortalOnline`) confirms campus presence before falling back to standby.
+- Removed false-positive validation check under VPNs (`!status.isVpnActive`), ensuring VPN connection validation does not suppress auto-authentication on wakeup. Added `NET_CAPABILITY_NOT_VPN` to system rule requests.
 
 ---
 
