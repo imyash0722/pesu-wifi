@@ -29,7 +29,7 @@ data class PortalStatus(
 class PortalRepository(
     private val context: Context,
     private val accountRepository: AccountRepository = AccountRepository.getInstance(context),
-    private val api: PortalApi = PortalApi
+    val api: PortalApi = PortalApi
 ) {
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager

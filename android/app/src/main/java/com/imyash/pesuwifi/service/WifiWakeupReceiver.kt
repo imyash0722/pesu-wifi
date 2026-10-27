@@ -10,6 +10,7 @@ import android.net.wifi.WifiInfo
 import android.os.Build
 import android.os.PowerManager
 import com.imyash.pesuwifi.data.AccountRepository
+import com.imyash.pesuwifi.data.PortalApi
 import com.imyash.pesuwifi.data.PortalRepository
 import com.imyash.pesuwifi.util.AppLogger
 import com.imyash.pesuwifi.util.RouterPing
@@ -130,7 +131,7 @@ class WifiWakeupReceiver : BroadcastReceiver() {
 
             var isCampus = portalRepo.isCampusNetwork(network)
             if (!isCampus && (currentSsid == null || portalRepo.isCampusSsid(currentSsid))) {
-                if (portalRepo.api.isPortalOnline()) {
+                if (PortalApi.isPortalOnline()) {
                     AppLogger.i(TAG, "isCampusNetwork initial check was false (SSID='$currentSsid'), but Cyberoam portal is ONLINE. Confirming campus network.")
                     isCampus = true
                 }
