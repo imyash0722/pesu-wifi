@@ -626,15 +626,11 @@ class PortalRepository(
     companion object {
         val CAMPUS_SSIDS = setOf(
             "AMAATRA-HOSTEL",
-            "AMAATRA_HOSTEL",
             "Foodcourt",
             "PESU-EC-Campus",
             "PESU-RR-Campus",
             "PESU-CIE",
-            "pes south cafe",
-            "PES-WIFI",
-            "PES_WIFI",
-            "pesuniversity-guest"
+            "pes south cafe"
         )
 
         @Volatile
