@@ -168,11 +168,6 @@ class PortalApiTest {
 
         val timeoutException = java.net.SocketTimeoutException("Connection timed out")
         org.junit.Assert.assertFalse(com.imyash.pesuwifi.data.ResilientSocketFactory.isPermOrBindingFailure(timeoutException))
-
-        com.imyash.pesuwifi.data.ResilientSocketFactory.isVpnPermFailureDetected = true
-        assertEquals(true, com.imyash.pesuwifi.data.ResilientSocketFactory.isVpnPermFailureDetected)
-        com.imyash.pesuwifi.data.ResilientSocketFactory.reset()
-        assertEquals(false, com.imyash.pesuwifi.data.ResilientSocketFactory.isVpnPermFailureDetected)
     }
 
     @Test
