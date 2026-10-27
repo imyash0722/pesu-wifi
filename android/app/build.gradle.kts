@@ -39,6 +39,15 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "androidreleasekey"
+            keyAlias = "pesuwifi"
+            keyPassword = "androidreleasekey"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -46,7 +55,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
