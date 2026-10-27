@@ -255,11 +255,23 @@ class PortalRepository(
         lastConfirmedCampusTime = 0L
         isExplicitLogout = false
         PortalApi.detectedPortalBase = null
-        ResilientSocketFactory.reset()
     }
 
     suspend fun refreshStatus(): PortalStatus = withContext(Dispatchers.IO) {
         val wifiNet = getWifiNetwork()
+        val cm = connectivityManager
+        if (wifiNet != null) {
+            try {
+                cm?.bindProcessToNetwork(wifiNet)
+            } catch (e: Exception) {
+                AppLogger.d("PortalRepository", "bindProcessToNetwork failed: ${e.message}")
+            }
+        } else {
+            try {
+                cm?.bindProcessToNetwork(null)
+            } catch (_: Exception) {}
+        }
+
         val localIp = getWifiLocalAddress(wifiNet)
         val gw = getDefaultGateway(wifiNet)
         val vpnActive = isVpnActive()
@@ -288,7 +300,9 @@ class PortalRepository(
         val currentSsid = getCurrentWifiSsid(wifiNet)
         val isCampus = isCampusNetwork(wifiNet)
 
-        val candidateGateways = listOfNotNull(gw?.takeIf { !it.startsWith("10.") }?.let { "http://$it:8090" })
+        val candidateGateways = listOfNotNull(
+            gw?.let { "http://$it:8090" }
+        )
         val start = System.currentTimeMillis()
         val portalUp = api.isPortalOnline(candidateGateways)
         val latency = System.currentTimeMillis() - start
@@ -441,6 +455,11 @@ class PortalRepository(
     suspend fun login(targetUsername: String? = null): Result<String> = withContext(Dispatchers.IO) {
         isExplicitLogout = false
         val wifiNet = getWifiNetwork()
+        if (wifiNet != null) {
+            try {
+                connectivityManager?.bindProcessToNetwork(wifiNet)
+            } catch (_: Exception) {}
+        }
         api.portalBaseUrl = resolvePortalBase(wifiNet)
         api.setWifiSocketFactory(wifiNet?.socketFactory, getWifiLocalAddress(wifiNet))
 
@@ -520,6 +539,11 @@ class PortalRepository(
     suspend fun logout(): Result<String> = withContext(Dispatchers.IO) {
         isExplicitLogout = true
         val wifiNet = getWifiNetwork()
+        if (wifiNet != null) {
+            try {
+                connectivityManager?.bindProcessToNetwork(wifiNet)
+            } catch (_: Exception) {}
+        }
         api.portalBaseUrl = resolvePortalBase(wifiNet)
         api.setWifiSocketFactory(wifiNet?.socketFactory, getWifiLocalAddress(wifiNet))
 

@@ -532,8 +532,12 @@ class WifiKeepaliveService : Service() {
                     AppLogger.i(TAG, "Keepalive loop: Non-campus Wi-Fi ($lastSsid) detected. Entering dormant standby.")
                     break
                 } else if (!status.isWifiConnected) {
-                    AppLogger.i(TAG, "Keepalive loop: Wi-Fi disconnected. Entering standby.")
-                    break
+                    delay(3000L)
+                    val recheck = portalRepository.statusFlow.value
+                    if (!recheck.isWifiConnected) {
+                        AppLogger.i(TAG, "Keepalive loop: Wi-Fi disconnected. Entering standby.")
+                        break
+                    }
                 }
 
                 // If on campus, but gateway probe was temporarily unreachable, retry sooner (10s)

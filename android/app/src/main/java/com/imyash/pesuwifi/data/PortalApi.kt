@@ -3,6 +3,7 @@ package com.imyash.pesuwifi.data
 import android.util.Log
 import com.imyash.pesuwifi.util.AppLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -175,7 +176,7 @@ object PortalApi {
         val first = attempt(probeUrl, 1)
         if (first) return@withContext true
 
-        // 2. Candidate gateways to dynamically probe
+        // 2. Candidate gateways to dynamically probe concurrently
         val candidates = linkedSetOf<String>().apply {
             add(DEFAULT_PORTAL_BASE)
             add(AMAATRA_PORTAL_BASE)
@@ -183,11 +184,17 @@ object PortalApi {
             add(AMAATRA_LEGACY_BASE)
         }.filter { it != portalBaseUrl }
 
-        var attemptCounter = 2
-        for (cand in candidates) {
-            val candidateProbe = "$cand/httpclient.html"
-            val candidateSuccess = attempt(candidateProbe, attemptCounter++)
-            if (candidateSuccess) {
+        val deferredProbes = candidates.map { cand ->
+            cand to async {
+                val candidateProbe = "$cand/httpclient.html"
+                val ok = attempt(candidateProbe, 2)
+                cand to ok
+            }
+        }
+
+        for ((cand, deferred) in deferredProbes) {
+            val (_, ok) = deferred.await()
+            if (ok) {
                 AppLogger.portal(TAG, "Dynamic portal discovery succeeded! Switched portalBaseUrl to $cand (was $portalBaseUrl)")
                 portalBaseUrl = cand
                 detectedPortalBase = cand
@@ -199,7 +206,7 @@ object PortalApi {
         val detectedFromRedirect = detectPortalFromRedirect()
         if (detectedFromRedirect != null && detectedFromRedirect != portalBaseUrl) {
             val candidateProbe = "$detectedFromRedirect/httpclient.html"
-            val candidateSuccess = attempt(candidateProbe, attemptCounter++)
+            val candidateSuccess = attempt(candidateProbe, 3)
             if (candidateSuccess) {
                 AppLogger.portal(TAG, "Dynamic portal discovery from HTTP redirect succeeded: $detectedFromRedirect")
                 portalBaseUrl = detectedFromRedirect
@@ -208,8 +215,7 @@ object PortalApi {
             }
         }
 
-        delay(200L)
-        attempt(probeUrl, attemptCounter)
+        false
     }
 
     private suspend fun detectPortalFromRedirect(): String? = withContext(Dispatchers.IO) {
@@ -375,7 +381,7 @@ object PortalApi {
                 .post(formBody)
                 .build()
 
-            getClient(8000).newCall(request).execute().use { response ->
+            getClient(4000).newCall(request).execute().use { response ->
                 val latency = System.currentTimeMillis() - start
                 val body = response.body?.string() ?: ""
                 val parsed = parseXml(body)

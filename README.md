@@ -17,9 +17,9 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 
 | Platform | Interface | Engine | Status | Download |
 | :--- | :--- | :--- | :--- | :--- |
-| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.1 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.1 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.1 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.2 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.2 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.2 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
 | **iOS / iPadOS** | Native Shortcuts | 1-Tap `.shortcut` Generator + Personal Automation | Live Tool | [Generate Shortcut](https://imyash0722.github.io/pesu-wifi/ios.html) |
 | **macOS** | CLI / LaunchAgent | Native Rust CLI | Compatible | Build from Source |
 
@@ -28,12 +28,12 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 ## Key Features
 
 - **Full VPN Compatibility (Zero User Fiddling):**
-  - **Android:** Custom `ResilientSocketFactory` catches kernel `EPERM` errors during socket `connect()` and transparently routes portal traffic via direct RFC-1918 gateway bypass without requiring manual split-tunneling in Tailscale, WireGuard, Cloudflare WARP, OpenVPN, or AdGuard.
-  - **Windows & Linux Desktop:** Automatically provisions `/32` host routes for campus gateway endpoints (`192.168.254.1/32`, `172.16.1.1/32`, `10.14.142.1/32`) bound strictly to the physical Wi-Fi interface. Prevents VPN default routes (`0.0.0.0/0`) from hijacking or dropping portal login and keepalive packets.
+  - **Android:** Custom `ResilientSocketFactory` and `bindProcessToNetwork` catch kernel `EPERM` errors during socket `connect()` and transparently routes portal traffic via direct physical interface binding without requiring manual split-tunneling in Tailscale, WireGuard, Cloudflare WARP, OpenVPN, or AdGuard.
+  - **Windows & Linux Desktop:** Automatically provisions `/32` host routes for campus gateway endpoints (`192.168.254.1/32`, `172.16.1.1/32`, `192.168.1.1/32`, `10.14.142.1/32`) bound strictly to the physical Wi-Fi interface. Prevents VPN default routes (`0.0.0.0/0`) from hijacking or dropping portal login and keepalive packets.
   - **iOS:** Complete companion guide explaining VPN connection order and Shortcuts automated sign-in.
 - **In-App Self-Updater (Android):**
   - Automatic GitHub Releases API checks on launch and on-demand via the Guides screen.
-  - Live version diff (`v3.7.0 → v3.7.1`), release notes rendering, and streaming APK download progress bar.
+  - Live version diff (`v3.7.1 → v3.7.2`), release notes rendering, and streaming APK download progress bar.
   - 1-tap package installation via secure `FileProvider` and Android `PackageInstaller` (`REQUEST_INSTALL_PACKAGES`).
 - **In-App Knowledge Base & Guides (Android):**
   - Built-in Material 3 Guides screen accessible directly from the top app bar book icon.
@@ -55,7 +55,7 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 ## Quick Installation
 
 ### 1. Android Phone (8.0 to 16)
-- Download the standalone **[Stable APK](https://github.com/imyash0722/pesu-wifi/releases/latest)** (`pesu-wifi-v3.7.1-android-stable.apk`) or **[Tester APK](https://github.com/imyash0722/pesu-wifi/releases/latest)**.
+- Download the standalone **[Stable APK](https://github.com/imyash0722/pesu-wifi/releases/latest)** (`pesu-wifi-v3.7.2-android-stable.apk`) or **[Tester APK](https://github.com/imyash0722/pesu-wifi/releases/latest)**.
 - Follow the interactive **[Visual Setup Guide](https://imyash0722.github.io/pesu-wifi/instructions.html)**.
 - Grant notification and battery optimization exemption permissions, add your credentials, and turn the service on.
 - Future updates can be installed with a single tap directly within the app!
@@ -65,7 +65,7 @@ Run in PowerShell (per-user install, no admin prompt needed):
 ```powershell
 irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
-Or download the standalone Inno Setup **[`pesu-wifi-v3.7.1-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
+Or download the standalone Inno Setup **[`pesu-wifi-v3.7.2-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
 
 ### 3. Linux (Arch / Ubuntu / Fedora / Debian)
 Run in your terminal:

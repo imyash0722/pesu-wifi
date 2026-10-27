@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.2 — Dual-Gateway Discovery, Kernel VPN Bypass Binding & Flapping Fix](#v372--dual-gateway-discovery-kernel-vpn-bypass-binding--flapping-fix)
+  - [Overview & Major Highlights](#v372-overview--major-highlights)
 - [v3.7.1 — In-App Guides, In-App Self-Updater, Syntax-Colored Command Blocks & CLI Aliases](#v371--in-app-guides-in-app-self-updater-syntax-colored-command-blocks--cli-aliases)
   - [Overview & Major Highlights](#v371-overview--major-highlights)
 - [v3.7.0 — Unified Multi-Platform Monorepo (Android, Windows, Linux, iOS & React Landing Page)](#v370--unified-multi-platform-monorepo-android-windows-linux-ios--react-landing-page)
@@ -23,6 +25,34 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.2 — Dual-Gateway Discovery, Kernel VPN Bypass Binding & Flapping Fix
+
+**Release Date:** October 27, 2026  
+**Git Tag:** [`v3.7.2`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.2)  
+**Release Type:** Critical Bugfix & Network Resilience Release (Android & Linux/Windows CLI)  
+
+### v3.7.2 Overview & Major Highlights
+
+- **⚡ Fast Concurrent Gateway Probing (192.x.x.x vs 172.x.x.x):**
+  - Android client now concurrently probes all campus gateway candidates (`http://192.168.254.1:8090`, `http://172.16.1.1:8090`, `http://192.168.1.1:8090`, and `http://$gw:8090`) in parallel using Kotlin coroutines (`async`).
+  - Automatically identifies whether the device is connected to Main/EC Campus (`192.168.254.1`) or Amaatra Hostel (`172.16.1.1`) within 1.5 seconds without hanging or timeouts.
+- **🛡️ Native Kernel Process Binding (`bindProcessToNetwork`):**
+  - Android app now calls `ConnectivityManager.bindProcessToNetwork(wifiNet)`, forcing all DNS lookups, OkHttp sockets, and HTTP requests across the entire application process directly through `wlan0`.
+  - Fixes the issue where active VPN tunnels (Tailscale, WireGuard, WARP) or Cellular fallback routed requests from foreign IPs (e.g., `100.x.x.x`), preventing timeouts against private RFC-1918 gateway endpoints.
+- **🔄 Elimination of Wi-Fi Connection Flapping & BSSID Pinning:**
+  - Removed BSSID locking from `WifiSuggestionManager` and removed aggressive AP re-scanning in `PortalViewModel.connect()`.
+  - If already associated with a campus Wi-Fi network, the app immediately authenticates without tearing down the active Wi-Fi link.
+  - Allows the phone's native 802.11k/v/r roaming controller to transition smoothly across access points.
+- **🛑 Fixed Background Job Loops & Coroutine Cancellations:**
+  - `WifiWakeupJobService` now yields immediately if `WifiKeepaliveService` is running in the foreground, eliminating duplicate concurrent logins and coroutine cancellations (`JobCancellationException`).
+  - Added a roaming debounce delay before keepalive teardown to survive momentary AP handoffs.
+- **🖥️ Desktop CLI Portal Discovery & Non-Destructive Self-Healing:**
+  - Fixed `is_portal_online()` in Rust CLI to dynamically rediscover alternative gateway bases (`192.168.254.1`, `172.16.1.1`, `192.168.1.1`, gateway IP) when the cached base fails.
+  - Replaced destructive Wi-Fi radio cycling (`nmcli radio wifi off/on`) with safe re-association (`nmcli connection up`).
+  - Added `/32` host routes for `172.16.1.1/32` and `192.168.1.1/32` on Windows and Linux to prevent VPN default routes from capturing hostel portal traffic.
 
 ---
 

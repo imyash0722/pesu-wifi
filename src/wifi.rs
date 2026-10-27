@@ -268,18 +268,8 @@ pub fn heal_network(tier: u8) {
     }
 
     match tier {
-        1 => {
-            log(&format!("[Self-Healing L1] Reconnecting to '{}'...", wifi_con));
-            let _ = Command::new("nmcli")
-                .args(["connection", "up", &wifi_con])
-                .output();
-        }
-        2 => {
-            log("[Self-Healing L2] Cycling Wi-Fi radio...");
-            let _ = Command::new("nmcli").args(["radio", "wifi", "off"]).output();
-            sleep(Duration::from_secs(2));
-            let _ = Command::new("nmcli").args(["radio", "wifi", "on"]).output();
-            sleep(Duration::from_secs(5));
+        1 | 2 => {
+            log(&format!("[Self-Healing] Re-associating with '{}'...", wifi_con));
             let _ = Command::new("nmcli")
                 .args(["connection", "up", &wifi_con])
                 .output();
@@ -439,7 +429,7 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
         None => return,
     };
 
-    let portal_ips = ["192.168.254.1/32", "10.14.142.1/32"];
+    let portal_ips = ["192.168.254.1/32", "172.16.1.1/32", "192.168.1.1/32", "10.14.142.1/32"];
 
     let existing_routes = Command::new("nmcli")
         .args(["-g", "ipv4.routes", "connection", "show", ssid])
@@ -476,7 +466,7 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
         None => return,
     };
 
-    let targets = ["192.168.254.1", "10.14.142.1"];
+    let targets = ["192.168.254.1", "172.16.1.1", "192.168.1.1", "10.14.142.1"];
     for target in targets {
         let _ = Command::new("route")
             .args(["add", target, "mask", "255.255.255.255", &gw, "metric", "1"])
@@ -488,7 +478,7 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
         $adapter = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {{ $_.MediaType -eq 'Native 802.11' -or $_.InterfaceDescription -like '*Wi-Fi*' -or $_.Name -like '*Wi-Fi*' }} | Select-Object -First 1
         if ($adapter) {{
             $idx = $adapter.ifIndex
-            $targets = @('192.168.254.1/32', '10.14.142.1/32')
+            $targets = @('192.168.254.1/32', '172.16.1.1/32', '192.168.1.1/32', '10.14.142.1/32')
             foreach ($tgt in $targets) {{
                 $existing = Get-NetRoute -DestinationPrefix $tgt -InterfaceIndex $idx -ErrorAction SilentlyContinue
                 if (-not $existing) {{

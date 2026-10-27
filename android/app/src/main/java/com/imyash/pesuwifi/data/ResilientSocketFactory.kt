@@ -29,13 +29,6 @@ class ResilientSocketFactory(
     companion object {
         private const val TAG = "ResilientSocket"
 
-        @Volatile
-        var isVpnPermFailureDetected: Boolean = false
-
-        fun reset() {
-            isVpnPermFailureDetected = false
-        }
-
         fun isPermOrBindingFailure(t: Throwable): Boolean {
             if (t is SecurityException) return true
             val msg = t.message?.lowercase() ?: ""
@@ -99,23 +92,21 @@ class ResilientSocketFactory(
         private var activeSocket: Socket = initializeSocket()
 
         private fun initializeSocket(): Socket {
-            return if (!isVpnPermFailureDetected && primaryFactory != null) {
+            if (primaryFactory != null) {
                 try {
-                    primaryFactory.createSocket()
+                    return primaryFactory.createSocket()
                 } catch (t: Throwable) {
                     if (isPermOrBindingFailure(t)) {
-                        isVpnPermFailureDetected = true
-                        AppLogger.w(TAG, "Wi-Fi socket creation threw ${t.message} (VPN active); using standard socket")
-                        createFallbackSocket()
+                        AppLogger.w(TAG, "Wi-Fi socket creation threw ${t.message}; using local-bound fallback socket")
+                        return createFallbackSocket()
                     } else if (t is IOException) {
                         throw t
                     } else {
                         throw IOException("Socket creation failed", t)
                     }
                 }
-            } else {
-                createFallbackSocket()
             }
+            return createFallbackSocket()
         }
 
         private fun createFallbackSocket(): Socket {
@@ -139,13 +130,12 @@ class ResilientSocketFactory(
                 activeSocket.connect(endpoint, timeout)
             } catch (t: Throwable) {
                 if (isPermOrBindingFailure(t)) {
-                    isVpnPermFailureDetected = true
-                    AppLogger.w(TAG, "Wi-Fi bound socket failed connect with ${t.message} (VPN active). Transparently falling back to standard system socket...")
+                    AppLogger.w(TAG, "Wi-Fi bound socket failed connect with ${t.message} (VPN active). Transparently falling back to local-bound fallback socket...")
                     try {
                         activeSocket.close()
                     } catch (_: Exception) {}
 
-                    val fallback = fallbackFactory.createSocket()
+                    val fallback = createFallbackSocket()
                     fallback.connect(endpoint, timeout)
                     activeSocket = fallback
                     AppLogger.i(TAG, "VPN fallback socket connected successfully to $endpoint")

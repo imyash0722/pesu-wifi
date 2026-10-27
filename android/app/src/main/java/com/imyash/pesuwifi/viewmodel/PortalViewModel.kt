@@ -136,24 +136,12 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
 
-                // 2. Scan and prioritize the strongest campus AP
+                // 2. Ensure campus Wi-Fi association without tearing down existing links
                 if (wm?.isWifiEnabled == true) {
-                    _userMessage.value = "Scanning for strongest campus AP..."
-                    val strongest = WifiSuggestionManager.findStrongestCampusAp(context)
-                    if (strongest != null) {
-                        _userMessage.value = "Connecting to ${strongest.ssid} (${strongest.level} dBm)..."
-                        WifiSuggestionManager.prioritizeTarget(context, strongest.ssid, strongest.bssid)
-                    } else {
-                        try {
-                            @Suppress("DEPRECATION")
-                            wm.startScan()
-                        } catch (_: Exception) {}
-                        WifiSuggestionManager.ensureSuggestionRegistered(context, forceRefresh = true)
-                    }
-
-                    // Wait for association if not already on campus Wi-Fi (up to 8s)
-                    if (!portalRepository.isCampusNetwork()) {
+                    val alreadyCampus = portalRepository.isCampusNetwork()
+                    if (!alreadyCampus) {
                         _userMessage.value = "Associating with campus Wi-Fi..."
+                        WifiSuggestionManager.ensureSuggestionRegistered(context)
                         withTimeoutOrNull(8000L) {
                             while (!portalRepository.isCampusNetwork()) {
                                 delay(400L)

@@ -518,10 +518,14 @@ pub fn discover_portal_base() -> String {
         }
     }
 
-    // 3. Fast probe standard PESU gateway endpoints
+    // 3. Fast probe standard PESU gateway endpoints (EC/RR Campus, Amaatra Hostel)
     let standard_candidates = [
         "http://192.168.254.1:8090",
         "https://192.168.254.1:8090",
+        "http://172.16.1.1:8090",
+        "https://172.16.1.1:8090",
+        "http://192.168.1.1:8090",
+        "https://192.168.1.1:8090",
     ];
     for &cand in &standard_candidates {
         if probe_url_alive(cand, 1200) {
@@ -788,18 +792,19 @@ pub fn parse_xml(xml_content: &str, username: Option<&str>) -> HashMap<String, S
 
 pub fn is_portal_online() -> bool {
     let base = get_portal_base();
-    if probe_url_alive(&base, 3500) {
+    if probe_url_alive(&base, 1500) {
         return true;
     }
 
-    // Portal may have moved or network changed: invalidate and rediscover
+    // Portal may have moved or network changed: invalidate and rediscover across all campus gateways
     invalidate_portal_base();
-    let new_base = get_portal_base();
-    if new_base != base {
-        probe_url_alive(&new_base, 3500)
-    } else {
-        false
+    let discovered = discover_portal_base();
+    if probe_url_alive(&discovered, 1500) {
+        set_portal_base(&discovered);
+        return true;
     }
+
+    false
 }
 
 pub fn check_live(username: Option<&str>, retry: bool) -> bool {

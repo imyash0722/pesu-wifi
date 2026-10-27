@@ -63,14 +63,6 @@ object WifiSuggestionManager {
                     builder.setWpa2Passphrase(target.passphrase)
                 }
 
-                if (isPriority && !priorityBssid.isNullOrBlank() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    try {
-                        builder.setBssid(android.net.MacAddress.fromString(priorityBssid))
-                    } catch (e: Exception) {
-                        AppLogger.w(TAG, "Invalid BSSID for suggestion '$priorityBssid': ${e.message}")
-                    }
-                }
-
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     builder.setPriority(if (isPriority) 1000 else 500)
                     builder.setIsInitialAutojoinEnabled(true)

@@ -19,7 +19,7 @@ export const App: React.FC = () => {
           {/* Notification / Version Announcement Chip */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-8 backdrop-blur-md shadow-lg shadow-emerald-500/5 hover:border-emerald-500/50 transition-colors">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>v3.7.1 Released: In-App Guides, Auto-Updater & CLI Aliases</span>
+            <span>v3.7.2 Released: Dual-Gateway Discovery &amp; Kernel VPN Bypass</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
 
@@ -40,7 +40,7 @@ export const App: React.FC = () => {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <a href="#download">
               <ShinyButton variant="primary" icon={<Download className="w-5 h-5" />} className="text-base px-7 py-3.5">
-                Download v3.7.1 Releases
+                Download v3.7.2 Releases
               </ShinyButton>
             </a>
 

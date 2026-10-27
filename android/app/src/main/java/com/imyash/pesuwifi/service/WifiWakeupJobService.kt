@@ -18,6 +18,12 @@ class WifiWakeupJobService : JobService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onStartJob(params: JobParameters?): Boolean {
+        // Yield immediately if WifiKeepaliveService foreground daemon is already active
+        if (WifiKeepaliveService.isServiceRunning.value) {
+            jobFinished(params, false)
+            return false
+        }
+
         AppLogger.i(TAG, "OS JobScheduler awakened WifiWakeupJobService (jobId=${params?.jobId})")
         serviceScope.launch {
             try {
@@ -28,8 +34,6 @@ class WifiWakeupJobService : JobService() {
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Error in WifiWakeupJobService: ${e.message}", e)
             } finally {
-                // Re-arm Job for next network state transition
-                SystemRuleManager.scheduleWakeupJob(applicationContext)
                 jobFinished(params, false)
             }
         }
