@@ -36,7 +36,14 @@ class ResilientSocketFactory(
                 msg.contains("operation not permitted") ||
                 msg.contains("permission denied") ||
                 msg.contains("binding socket") ||
-                msg.contains("failed to bind")
+                msg.contains("failed to bind") ||
+                msg.contains("eacces") ||
+                msg.contains("enonet") ||
+                msg.contains("machine is not on the network") ||
+                msg.contains("network is down") ||
+                msg.contains("network is unreachable") ||
+                msg.contains("no route to host") ||
+                msg.contains("socket failed")
         }
     }
 
@@ -80,8 +87,11 @@ class ResilientSocketFactory(
 
     /**
      * Delegating Socket wrapper that intercepts connect() errors (such as EPERM / Operation not permitted
-     * thrown when an active VPN disallows direct physical interface binding) and dynamically falls back
-     * to a standard system socket to reach local RFC-1918 gateway IPs.
+     * or ENONET thrown when an active VPN disallows direct physical interface binding) and dynamically falls back
+     * across a 3-tier escalation strategy:
+     *   - Tier 1: Primary network-bound socket (via Network.socketFactory)
+     *   - Tier 2: Local IP-bound system socket (via localBindAddress)
+     *   - Tier 3: Completely unbound standard system socket (bypasses kernel routing/bind lockouts)
      */
     class ResilientSocket(
         private val primaryFactory: SocketFactory?,
@@ -89,36 +99,41 @@ class ResilientSocketFactory(
         private val localBindAddress: InetAddress?
     ) : Socket() {
 
+        private var currentTier: Int = 1
         private var activeSocket: Socket = initializeSocket()
 
         private fun initializeSocket(): Socket {
             if (primaryFactory != null) {
                 try {
+                    currentTier = 1
                     return primaryFactory.createSocket()
                 } catch (t: Throwable) {
-                    if (isPermOrBindingFailure(t)) {
-                        AppLogger.w(TAG, "Wi-Fi socket creation threw ${t.message}; using local-bound fallback socket")
-                        return createFallbackSocket()
-                    } else if (t is IOException) {
-                        throw t
-                    } else {
-                        throw IOException("Socket creation failed", t)
-                    }
+                    AppLogger.w(TAG, "Primary Wi-Fi socket creation threw ${t.message}; falling back to local-bound/unbound socket")
                 }
             }
-            return createFallbackSocket()
+            return createTier2Or3Socket()
         }
 
-        private fun createFallbackSocket(): Socket {
-            val s = fallbackFactory.createSocket()
+        private fun createTier2Or3Socket(): Socket {
             if (localBindAddress != null) {
                 try {
+                    val s = fallbackFactory.createSocket()
                     s.bind(InetSocketAddress(localBindAddress, 0))
+                    currentTier = 2
+                    return s
                 } catch (e: Exception) {
                     AppLogger.d(TAG, "Fallback socket bind to $localBindAddress skipped: ${e.message}")
                 }
             }
-            return s
+            currentTier = 3
+            return fallbackFactory.createSocket()
+        }
+
+        private fun transferOptions(source: Socket, target: Socket) {
+            try { target.tcpNoDelay = source.tcpNoDelay } catch (_: Exception) {}
+            try { target.soTimeout = source.soTimeout } catch (_: Exception) {}
+            try { target.keepAlive = source.keepAlive } catch (_: Exception) {}
+            try { target.reuseAddress = source.reuseAddress } catch (_: Exception) {}
         }
 
         override fun connect(endpoint: SocketAddress?) {
@@ -126,24 +141,53 @@ class ResilientSocketFactory(
         }
 
         override fun connect(endpoint: SocketAddress?, timeout: Int) {
+            // Tier 1 (or initialized tier): Try activeSocket
             try {
                 activeSocket.connect(endpoint, timeout)
+                return
             } catch (t: Throwable) {
-                if (isPermOrBindingFailure(t)) {
-                    AppLogger.w(TAG, "Wi-Fi bound socket failed connect with ${t.message} (VPN active). Transparently falling back to local-bound fallback socket...")
-                    try {
-                        activeSocket.close()
-                    } catch (_: Exception) {}
-
-                    val fallback = createFallbackSocket()
-                    fallback.connect(endpoint, timeout)
-                    activeSocket = fallback
-                    AppLogger.i(TAG, "VPN fallback socket connected successfully to $endpoint")
-                } else if (t is IOException) {
-                    throw t
-                } else {
-                    throw IOException("Connection failed to $endpoint", t)
+                if (!isPermOrBindingFailure(t)) {
+                    if (t is IOException) throw t else throw IOException("Connection failed to $endpoint", t)
                 }
+                AppLogger.w(TAG, "Socket tier $currentTier failed connect with ${t.message} (VPN active). Falling back...")
+                try { activeSocket.close() } catch (_: Exception) {}
+            }
+
+            // Tier 2: Try local-bound fallback socket if we were on Tier 1
+            if (currentTier == 1 && localBindAddress != null) {
+                try {
+                    val s = fallbackFactory.createSocket()
+                    transferOptions(activeSocket, s)
+                    try {
+                        s.bind(InetSocketAddress(localBindAddress, 0))
+                        currentTier = 2
+                        s.connect(endpoint, timeout)
+                        activeSocket = s
+                        AppLogger.i(TAG, "Tier 2 local-bound fallback socket connected successfully to $endpoint")
+                        return
+                    } catch (t2: Throwable) {
+                        try { s.close() } catch (_: Exception) {}
+                        if (!isPermOrBindingFailure(t2)) {
+                            if (t2 is IOException) throw t2 else throw IOException("Connection failed to $endpoint", t2)
+                        }
+                        AppLogger.w(TAG, "Tier 2 local-bound socket failed connect with ${t2.message}. Falling back to Tier 3 unbound socket...")
+                    }
+                } catch (e: Exception) {
+                    AppLogger.d(TAG, "Tier 2 fallback socket setup skipped: ${e.message}")
+                }
+            }
+
+            // Tier 3: Completely unbound standard system socket (bypasses kernel bind/protect restrictions)
+            try {
+                val unbound = fallbackFactory.createSocket()
+                transferOptions(activeSocket, unbound)
+                currentTier = 3
+                unbound.connect(endpoint, timeout)
+                activeSocket = unbound
+                AppLogger.i(TAG, "Tier 3 unbound system socket connected successfully to $endpoint")
+            } catch (t3: Throwable) {
+                try { activeSocket.close() } catch (_: Exception) {}
+                if (t3 is IOException) throw t3 else throw IOException("All socket tiers failed to connect to $endpoint", t3)
             }
         }
 

@@ -415,6 +415,9 @@ class PortalRepository(
         }
 
         val message = if (loggedIn) {
+            try {
+                connectivityManager?.bindProcessToNetwork(null)
+            } catch (_: Exception) {}
             "Connected as ${activeUser ?: "active session"}"
         } else {
             "PESU Wi-Fi connected (Logged out)"

@@ -2,7 +2,7 @@
 ; PESU WiFi Windows Setup (.exe Installer)
 
 #ifndef AppVersion
-#define AppVersion "3.7.2"
+#define AppVersion "3.7.3"
 #endif
 
 #define AppName "PESU WiFi"

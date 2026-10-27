@@ -5,7 +5,7 @@ import { ShinyButton } from './ShinyButton';
 import { CommandBlock } from './CommandBlock';
 
 export const DownloadSection: React.FC = () => {
-  const version = 'v3.7.2';
+  const version = 'v3.7.3';
   const baseUrl = `https://github.com/imyash0722/pesu-wifi/releases/download/${version}`;
 
   const androidStableUrl = `${baseUrl}/pesu-wifi-${version}-android-stable.apk`;

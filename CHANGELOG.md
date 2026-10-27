@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.3 — Resilient Fallback DNS for Updater, 3-Tier VPN Socket Escalation & Permanent Keystore](#v373--resilient-fallback-dns-for-updater-3-tier-vpn-socket-escalation--permanent-keystore)
+  - [Overview & Major Highlights](#v373-overview--major-highlights)
 - [v3.7.2 — Dual-Gateway Discovery, Kernel VPN Bypass Binding & Flapping Fix](#v372--dual-gateway-discovery-kernel-vpn-bypass-binding--flapping-fix)
   - [Overview & Major Highlights](#v372-overview--major-highlights)
 - [v3.7.1 — In-App Guides, In-App Self-Updater, Syntax-Colored Command Blocks & CLI Aliases](#v371--in-app-guides-in-app-self-updater-syntax-colored-command-blocks--cli-aliases)
@@ -25,6 +27,36 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.3 — Resilient Fallback DNS for Updater, 3-Tier VPN Socket Escalation & Permanent Keystore
+
+**Release Date:** October 27, 2026  
+**Git Tag:** [`v3.7.3`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.3)  
+**Release Type:** Critical Stability & Network Resilience Release (Android & Monorepo)
+
+### v3.7.3 Overview & Major Highlights
+
+#### 1. Resilient Fallback Anycast DNS for In-App Updater (Fixes "No Address Associated With Hostname")
+- **Root Cause:** Campus Wi-Fi DNS resolvers (`192.168.3.2`) frequently drop or throttle UDP port 53 packets directed to public domains, causing OkHttp to throw `UnknownHostException: Unable to resolve host "api.github.com": No address associated with hostname`.
+- **Solution:** Integrated an intelligent `resilientDns` resolver within `UpdateManager.kt`. If the system DNS query times out or fails, requests to GitHub domains (`api.github.com`, `github.com`, `objects.githubusercontent.com`, `raw.githubusercontent.com`) automatically resolve to verified Fastly/GitHub anycast IP pools (`20.207.73.85`, `140.82.112.6`, `185.199.108.133`). Full TLS SNI and certificate verification are preserved.
+
+#### 2. Dynamic Process Unbinding During Update Checks & Downloads
+- **Root Cause:** `ConnectivityManager.bindProcessToNetwork` bound the entire application process to `wlan0`. If Wi-Fi was in a captive or degraded state, cellular data failover was completely blocked.
+- **Solution:** Encapsulated update checks and APK downloads in `withProcessUnbound`, temporarily freeing the process from explicit physical binding so Android can leverage mobile data or uninhibited default routing.
+
+#### 3. 3-Tier VPN Socket Escalation (Fixes "EPERM / Operation Not Permitted on Reboot")
+- **Root Cause:** On device reboot, VPN applications (Tailscale, WireGuard, Cloudflare WARP) initialize in blocking/lockdown mode. In previous builds, if a bound socket threw `EPERM`, the fallback attempt also bound locally and threw `EPERM` unhandled.
+- **Solution:** Implemented a non-blocking 3-tier escalation engine in `ResilientSocketFactory`:
+  - **Tier 1:** Primary Wi-Fi network socket (`Network.getSocketFactory()`).
+  - **Tier 2:** Local IP-bound socket (`localBindAddress`).
+  - **Tier 3:** Completely unbound standard system socket (`fallbackFactory.createSocket()`), which completely bypasses the Linux kernel's local interface bind restrictions.
+- Added automatic socket option transference (`tcpNoDelay`, `soTimeout`, `keepAlive`, `reuseAddress`) across fallback tiers.
+
+#### 4. Permanent Release Signing Keystore (Fixes "Package Conflicts with Existing Package")
+- **Root Cause:** Previous debug and CI builds generated transient signing keys, triggering `INSTALL_FAILED_UPDATE_INCOMPATIBLE` ("App not installed as package conflicts with an existing package") when upgrading.
+- **Solution:** Committed a permanent release keystore (`android/app/release.keystore`) and configured both `release` and `debug` build types in Gradle to use it. All subsequent updates install smoothly with one tap.
 
 ---
 
