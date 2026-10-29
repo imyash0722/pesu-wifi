@@ -961,12 +961,14 @@ pub fn cmd_stop() -> i32 {
     }
 
     let _ = Command::new("systemctl")
-        .args(["stop", "pesu-wifi.service"])
+        .args(["--user", "--no-ask-password", "stop", "pesu-wifi.service"])
         .output();
 
-    let _ = Command::new("systemctl")
-        .args(["--user", "stop", "pesu-wifi.service"])
-        .output();
+    if unsafe { libc::geteuid() == 0 } {
+        let _ = Command::new("systemctl")
+            .args(["--no-ask-password", "stop", "pesu-wifi.service"])
+            .output();
+    }
 
     let _ = Command::new("pkill")
         .args(["-f", "pesu[-_]wifi.*(daemon|start)"])
