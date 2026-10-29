@@ -99,6 +99,11 @@ class WifiKeepaliveService : Service() {
     private var lastFastAuthIp: String? = null
     private var lastFastAuthTime: Long = 0L
     private var lastRoamTimestamp: Long = 0L
+    private var lastCaptivePortal: Boolean = false
+    private var lastValidated: Boolean = false
+    private var lastCapabilitiesLogTimestamp: Long = 0L
+    private var lastCapabilitiesLoggedRssi: Int = -127
+    private var lastReauthTriggerTimestamp: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -452,8 +457,9 @@ class WifiKeepaliveService : Service() {
                                     60_000L // 60s cooldown for invalid credentials
                                 } else if (err.contains("account", ignoreCase = true) || err.contains("lock", ignoreCase = true)) {
                                     30_000L // 30s auto-expiring cooldown for temporary server lock
-                                } else if (err.contains("unreachable", ignoreCase = true) || err.contains("timeout", ignoreCase = true) || err.contains("failed to connect", ignoreCase = true)) {
-                                    15_000L // 15s cooldown for unreachable portal to avoid continuous connection timeout storms
+                                } else if (err.contains("unreachable", ignoreCase = true) || err.contains("timeout", ignoreCase = true) || err.contains("failed to connect", ignoreCase = true) ||
+                                    err.contains("eperm", ignoreCase = true) || err.contains("operation not permitted", ignoreCase = true) || err.contains("permission", ignoreCase = true)) {
+                                    15_000L // 15s cooldown for unreachable portal or socket permission restrictions to avoid continuous retry storms
                                 } else {
                                     5_000L // 5s retry for transient network/socket/DHCP errors during handover
                                 }
@@ -637,9 +643,11 @@ class WifiKeepaliveService : Service() {
             val campusResults = results.filter { portalRepository.isCampusSsid(it.SSID) }
             val otherResults = results.filter { !portalRepository.isCampusSsid(it.SSID) }
             AppLogger.wifi(TAG, "[ScanResults] Detected ${results.size} APs in range (${campusResults.size} campus, ${otherResults.size} other, updated=$updated)")
-            for (ap in campusResults) {
-                val ch = frequencyToChannel(ap.frequency)
-                AppLogger.wifi(TAG, "  -> Campus AP: BSSID=${ap.BSSID}, SSID=\"${ap.SSID}\", RSSI=${ap.level} dBm, Freq=${ap.frequency} MHz (Ch $ch), Caps=${ap.capabilities}")
+            if (updated) {
+                for (ap in campusResults) {
+                    val ch = frequencyToChannel(ap.frequency)
+                    AppLogger.d(TAG, "  -> Campus AP: BSSID=${ap.BSSID}, SSID=\"${ap.SSID}\", RSSI=${ap.level} dBm, Freq=${ap.frequency} MHz (Ch $ch), Caps=${ap.capabilities}")
+                }
             }
             // Record every visible campus AP to build the campus database across all builds
             for (ap in campusResults) {
@@ -842,11 +850,23 @@ class WifiKeepaliveService : Service() {
         val isCaptivePortal = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
         val isNotValidated = !isValidated
 
-        AppLogger.wifi(TAG, "[onCapabilitiesChanged] Net: $network | BSSID: $currentBssid | SSID: $currentSsid | RSSI: ${currentRssi}dBm | Freq: ${currentFreq}MHz (Ch ${frequencyToChannel(currentFreq)}) | Speed: ${linkSpeed}Mbps | Validated: $isValidated | CaptivePortal: $isCaptivePortal | NotValidated: $isNotValidated")
-
         val bssidChanged = currentBssid != null && lastBssid != null && currentBssid != lastBssid
+        val ssidChanged = currentSsid != null && lastSsid != null && currentSsid != lastSsid
+        val validationChanged = (isValidated != lastValidated) || (isCaptivePortal != lastCaptivePortal)
+        val now = SystemClock.elapsedRealtime()
+        val rssiDelta = Math.abs(currentRssi - lastCapabilitiesLoggedRssi)
+        val shouldLogCapabilities = bssidChanged || ssidChanged || validationChanged ||
+            (now - lastCapabilitiesLogTimestamp >= 60_000L) ||
+            (rssiDelta >= 15 && (now - lastCapabilitiesLogTimestamp >= 10_000L))
+
+        if (shouldLogCapabilities) {
+            AppLogger.wifi(TAG, "[onCapabilitiesChanged] Net: $network | BSSID: $currentBssid | SSID: $currentSsid | RSSI: ${currentRssi}dBm | Freq: ${currentFreq}MHz (Ch ${frequencyToChannel(currentFreq)}) | Speed: ${linkSpeed}Mbps | Validated: $isValidated | CaptivePortal: $isCaptivePortal | NotValidated: $isNotValidated")
+            lastCapabilitiesLogTimestamp = now
+            lastCapabilitiesLoggedRssi = currentRssi
+        }
+
         if (bssidChanged) {
-            lastRoamTimestamp = SystemClock.elapsedRealtime()
+            lastRoamTimestamp = now
             AppLogger.roam(TAG, "AP ROAM DETECTED: Physical router changed! BSSID '$lastBssid' -> '$currentBssid' (SSID: '$currentSsid', RSSI: ${currentRssi}dBm, Ch: ${frequencyToChannel(currentFreq)})")
             lastBssid = currentBssid
             if (!currentSsid.isNullOrBlank()) {
@@ -855,7 +875,7 @@ class WifiKeepaliveService : Service() {
             lastRssi = currentRssi
             lastFrequency = currentFreq
             updateTelemetry()
-            handleRoamingEvent(network)
+            handleRoamingEvent(network, isPhysicalRoam = true)
         } else {
             if (currentBssid != null) lastBssid = currentBssid
             if (!currentSsid.isNullOrBlank()) {
@@ -864,11 +884,21 @@ class WifiKeepaliveService : Service() {
             lastRssi = currentRssi
             lastFrequency = currentFreq
             updateTelemetry()
-            if (isCaptivePortal) {
-                AppLogger.roam(TAG, "Captive portal flag active on network $network: triggering roam re-auth check")
-                handleRoamingEvent(network)
+
+            val captivePortalRisingEdge = isCaptivePortal && !lastCaptivePortal
+            if (captivePortalRisingEdge && isCampusNetworkActive() && !isAuthBackoffActive && reconnectJob?.isActive != true) {
+                if (now - lastReauthTriggerTimestamp >= 15_000L) {
+                    lastReauthTriggerTimestamp = now
+                    AppLogger.roam(TAG, "Captive portal flag active on network $network (rising edge): triggering keepalive check")
+                    handleRoamingEvent(network, isPhysicalRoam = false)
+                } else {
+                    AppLogger.d(TAG, "Captive portal flag active on network $network, but debounce window active (${(15_000L - (now - lastReauthTriggerTimestamp)) / 1000}s remaining)")
+                }
             }
         }
+
+        lastCaptivePortal = isCaptivePortal
+        lastValidated = isValidated
 
         if (currentBssid != null && (wasCampusNetwork || isCampusNetworkActive() || (currentSsid != null && portalRepository.isCampusSsid(currentSsid)))) {
             BssidDatabase.record(
@@ -903,7 +933,7 @@ class WifiKeepaliveService : Service() {
             lastIpAddresses = currentIps
             lastGateway = defaultGateway
             updateTelemetry()
-            handleRoamingEvent(network)
+            handleRoamingEvent(network, isPhysicalRoam = true)
         } else {
             if (currentIps.isNotEmpty()) lastIpAddresses = currentIps
             if (defaultGateway != null) lastGateway = defaultGateway
@@ -975,6 +1005,11 @@ class WifiKeepaliveService : Service() {
         lastBssid = null
         lastIpAddresses = emptyList()
         lastGateway = null
+        lastCaptivePortal = false
+        lastValidated = false
+        lastCapabilitiesLogTimestamp = 0L
+        lastCapabilitiesLoggedRssi = -127
+        lastReauthTriggerTimestamp = 0L
         portalRepository.clearCampusCache()
         updateTelemetry()
         reconnectJob?.cancel()
@@ -1099,15 +1134,20 @@ class WifiKeepaliveService : Service() {
         }
     }
 
-    private fun handleRoamingEvent(network: Network) {
+    private fun handleRoamingEvent(network: Network, isPhysicalRoam: Boolean = true) {
         lastRoamTimestamp = SystemClock.elapsedRealtime()
         PortalApi.evictConnectionPool()
-        authBackoffUntilTimestamp = 0L
-        consecutiveFailureCount = 0
-        reconnectJob?.cancel()
+        if (isPhysicalRoam) {
+            authBackoffUntilTimestamp = 0L
+            consecutiveFailureCount = 0
+            reconnectJob?.cancel()
+        }
+        if (reconnectJob?.isActive == true) {
+            return
+        }
         reconnectJob = serviceScope.launch {
             delay(250L) // Fast 250ms debounce window for physical AP handover
-            if (!lastGateway.isNullOrBlank()) {
+            if (!lastGateway.isNullOrBlank() && isCampusNetworkActive()) {
                 val pingOk = RouterPing.pingGateway(lastGateway, timeoutMs = 1200, network = network)
                 AppLogger.roam(TAG, "Router gateway ping during roaming ($lastGateway): reachable=$pingOk")
             }

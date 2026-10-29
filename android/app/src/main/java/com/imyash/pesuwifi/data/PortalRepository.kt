@@ -311,7 +311,8 @@ class PortalRepository(
             } catch (_: Exception) {}
         }
 
-        val localIp = getWifiLocalAddress(wifiNet)
+        try {
+            val localIp = getWifiLocalAddress(wifiNet)
         val gw = getDefaultGateway(wifiNet)
         val vpnActive = isVpnActive()
         api.portalBaseUrl = resolvePortalBase(wifiNet)
@@ -482,6 +483,11 @@ class PortalRepository(
         _statusFlow.value = status
         AppLogger.i("PortalRepository", "refreshStatus: PESU Wi-Fi active (loggedIn=$loggedIn, latency=${latency}ms)")
         status
+        } finally {
+            try {
+                cm?.bindProcessToNetwork(null)
+            } catch (_: Exception) {}
+        }
     }
 
     private fun isFailoverCandidateError(e: Throwable?): Boolean {
@@ -510,80 +516,86 @@ class PortalRepository(
         try {
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
-        api.portalBaseUrl = resolvePortalBase(wifiNet)
-        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
+        try {
+            api.portalBaseUrl = resolvePortalBase(wifiNet)
+            api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
-        val username = targetUsername ?: accountRepository.getActiveUser()
-            ?: run {
-                AppLogger.w("PortalRepository", "Login aborted: No account configured")
-                return@withContext Result.failure<String>(Exception("No account configured. Add an account first."))
-            }
-        val password = accountRepository.getPassword(username)
-            ?: run {
-                AppLogger.w("PortalRepository", "Login aborted: No password saved for $username")
-                return@withContext Result.failure<String>(Exception("No password saved for '$username'"))
-            }
-        val currentStatus = _statusFlow.value
-        val currentUser = currentStatus.activeUsername
-        if (currentStatus.isLoggedIn && !currentUser.isNullOrBlank() && currentUser != username) {
-            AppLogger.i("PortalRepository", "Logging out current user '$currentUser' before switching to '$username'")
-            api.logout(currentUser)
-            kotlinx.coroutines.delay(300L)
-        }
-
-        AppLogger.i("PortalRepository", "Initiating login for $username")
-        val result = api.login(username, password)
-        if (result.isSuccess) {
-            accountRepository.setActiveUser(username)
-            wifiNet?.let { net ->
-                try {
-                    connectivityManager?.reportNetworkConnectivity(net, true)
-                } catch (e: Exception) {
-                    // Ignore security or OEM restrictions
+            val username = targetUsername ?: accountRepository.getActiveUser()
+                ?: run {
+                    AppLogger.w("PortalRepository", "Login aborted: No account configured")
+                    return@withContext Result.failure<String>(Exception("No account configured. Add an account first."))
                 }
+            val password = accountRepository.getPassword(username)
+                ?: run {
+                    AppLogger.w("PortalRepository", "Login aborted: No password saved for $username")
+                    return@withContext Result.failure<String>(Exception("No password saved for '$username'"))
+                }
+            val currentStatus = _statusFlow.value
+            val currentUser = currentStatus.activeUsername
+            if (currentStatus.isLoggedIn && !currentUser.isNullOrBlank() && currentUser != username) {
+                AppLogger.i("PortalRepository", "Logging out current user '$currentUser' before switching to '$username'")
+                api.logout(currentUser)
+                kotlinx.coroutines.delay(300L)
             }
-            refreshStatus()
-            return@withContext result
-        }
 
-        // Multi-Account Auto-Failover:
-        // When active account encounters concurrent limit or quota exhaustion, automatically try backup accounts
-        val errorException = result.exceptionOrNull()
-        if (isFailoverCandidateError(errorException)) {
-            val allAccounts = accountRepository.getAllAccounts()
-            val backupUsers = allAccounts.keys.filter { it != username }
-            if (backupUsers.isNotEmpty()) {
-                val reason = errorException?.message ?: "Account limit reached"
-                AppLogger.roam("PortalRepository", "Account '$username' hit limit ($reason). Attempting Multi-Account Auto-Failover across ${backupUsers.size} backup account(s)...")
+            AppLogger.i("PortalRepository", "Initiating login for $username")
+            val result = api.login(username, password)
+            if (result.isSuccess) {
+                accountRepository.setActiveUser(username)
+                wifiNet?.let { net ->
+                    try {
+                        connectivityManager?.reportNetworkConnectivity(net, true)
+                    } catch (e: Exception) {
+                        // Ignore security or OEM restrictions
+                    }
+                }
+                refreshStatus()
+                return@withContext result
+            }
 
-                for (backupUser in backupUsers) {
-                    val backupPass = allAccounts[backupUser] ?: continue
-                    AppLogger.i("PortalRepository", ">>> Failover: Attempting sign-in with backup account '$backupUser'...")
+            // Multi-Account Auto-Failover:
+            // When active account encounters concurrent limit or quota exhaustion, automatically try backup accounts
+            val errorException = result.exceptionOrNull()
+            if (isFailoverCandidateError(errorException)) {
+                val allAccounts = accountRepository.getAllAccounts()
+                val backupUsers = allAccounts.keys.filter { it != username }
+                if (backupUsers.isNotEmpty()) {
+                    val reason = errorException?.message ?: "Account limit reached"
+                    AppLogger.roam("PortalRepository", "Account '$username' hit limit ($reason). Attempting Multi-Account Auto-Failover across ${backupUsers.size} backup account(s)...")
 
-                    // Evict potential stale session on backup account
-                    api.logout(backupUser)
-                    kotlinx.coroutines.delay(350L)
+                    for (backupUser in backupUsers) {
+                        val backupPass = allAccounts[backupUser] ?: continue
+                        AppLogger.i("PortalRepository", ">>> Failover: Attempting sign-in with backup account '$backupUser'...")
 
-                    val backupResult = api.login(backupUser, backupPass)
-                    if (backupResult.isSuccess) {
-                        accountRepository.setActiveUser(backupUser)
-                        wifiNet?.let { net ->
-                            try {
-                                connectivityManager?.reportNetworkConnectivity(net, true)
-                            } catch (_: Exception) {}
+                        // Evict potential stale session on backup account
+                        api.logout(backupUser)
+                        kotlinx.coroutines.delay(350L)
+
+                        val backupResult = api.login(backupUser, backupPass)
+                        if (backupResult.isSuccess) {
+                            accountRepository.setActiveUser(backupUser)
+                            wifiNet?.let { net ->
+                                try {
+                                    connectivityManager?.reportNetworkConnectivity(net, true)
+                                } catch (_: Exception) {}
+                            }
+                            refreshStatus()
+                            val successNote = "Signed in as $backupUser (Auto-failover from $username: $reason)"
+                            AppLogger.portal("PortalRepository", ">>> Multi-Account Auto-Failover SUCCESS: $successNote")
+                            return@withContext Result.success(successNote)
+                        } else {
+                            AppLogger.w("PortalRepository", "Failover attempt for '$backupUser' failed: ${backupResult.exceptionOrNull()?.message}")
                         }
-                        refreshStatus()
-                        val successNote = "Signed in as $backupUser (Auto-failover from $username: $reason)"
-                        AppLogger.portal("PortalRepository", ">>> Multi-Account Auto-Failover SUCCESS: $successNote")
-                        return@withContext Result.success(successNote)
-                    } else {
-                        AppLogger.w("PortalRepository", "Failover attempt for '$backupUser' failed: ${backupResult.exceptionOrNull()?.message}")
                     }
                 }
             }
-        }
 
-        result
+            result
+        } finally {
+            try {
+                connectivityManager?.bindProcessToNetwork(null)
+            } catch (_: Exception) {}
+        }
     }
 
     suspend fun logout(): Result<String> = withContext(Dispatchers.IO) {
@@ -600,27 +612,33 @@ class PortalRepository(
         try {
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
-        api.portalBaseUrl = resolvePortalBase(wifiNet)
-        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
+        try {
+            api.portalBaseUrl = resolvePortalBase(wifiNet)
+            api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
-        // Immediately update statusFlow so UI switches to disconnected state without waiting
-        val current = _statusFlow.value
-        _statusFlow.value = current.copy(
-            isLoggedIn = false,
-            statusMessage = "PESU Wi-Fi connected (Logged out)"
-        )
+            // Immediately update statusFlow so UI switches to disconnected state without waiting
+            val current = _statusFlow.value
+            _statusFlow.value = current.copy(
+                isLoggedIn = false,
+                statusMessage = "PESU Wi-Fi connected (Logged out)"
+            )
 
-        wifiNet?.let { net ->
+            wifiNet?.let { net ->
+                try {
+                    connectivityManager?.reportNetworkConnectivity(net, false)
+                } catch (_: Exception) {}
+            }
+
+            val username = accountRepository.getActiveUser() ?: "user"
+            AppLogger.i("PortalRepository", "Initiating logout for $username")
+            val result = api.logout(username)
+            refreshStatus()
+            result
+        } finally {
             try {
-                connectivityManager?.reportNetworkConnectivity(net, false)
+                connectivityManager?.bindProcessToNetwork(null)
             } catch (_: Exception) {}
         }
-
-        val username = accountRepository.getActiveUser() ?: "user"
-        AppLogger.i("PortalRepository", "Initiating logout for $username")
-        val result = api.logout(username)
-        refreshStatus()
-        result
     }
 
     companion object {

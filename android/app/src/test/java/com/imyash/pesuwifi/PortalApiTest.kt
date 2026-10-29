@@ -171,6 +171,14 @@ class PortalApiTest {
     }
 
     @Test
+    fun testResilientSocketFactoryFailureState() {
+        com.imyash.pesuwifi.data.ResilientSocketFactory.isPrimaryFactoryFailing = true
+        assertTrue(com.imyash.pesuwifi.data.ResilientSocketFactory.isPrimaryFactoryFailing)
+        com.imyash.pesuwifi.data.ResilientSocketFactory.resetFailureState()
+        org.junit.Assert.assertFalse(com.imyash.pesuwifi.data.ResilientSocketFactory.isPrimaryFactoryFailing)
+    }
+
+    @Test
     fun testPortalStatusVpnDefault() {
         val status = com.imyash.pesuwifi.data.PortalStatus()
         org.junit.Assert.assertFalse(status.isVpnActive)

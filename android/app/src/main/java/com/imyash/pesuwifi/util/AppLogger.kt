@@ -36,7 +36,7 @@ data class LogEntry(
 
 object AppLogger {
     private const val MAX_LOGS = 5000
-    private const val MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024L // 5 MB
+    private const val MAX_FILE_SIZE_BYTES = 1536 * 1024L // 1.5 MB (was 5 MB)
     private val idCounter = AtomicLong(1)
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private val fullDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
@@ -112,7 +112,9 @@ object AppLogger {
                 logList.removeFirst()
             }
             logList.addLast(entry)
-            _logsFlow.value = logList.toList()
+            if (_logsFlow.subscriptionCount.value > 0) {
+                _logsFlow.value = logList.toList()
+            }
         }
 
         // Asynchronously persist to file (tester build only)
@@ -158,6 +160,12 @@ object AppLogger {
                     }
                 } catch (_: Exception) {}
             }
+        }
+    }
+
+    fun refreshFlow() {
+        synchronized(lock) {
+            _logsFlow.value = logList.toList()
         }
     }
 

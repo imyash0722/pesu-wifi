@@ -29,6 +29,13 @@ class ResilientSocketFactory(
     companion object {
         private const val TAG = "ResilientSocket"
 
+        @Volatile
+        var isPrimaryFactoryFailing: Boolean = false
+
+        fun resetFailureState() {
+            isPrimaryFactoryFailing = false
+        }
+
         fun isPermOrBindingFailure(t: Throwable): Boolean {
             if (t is SecurityException) return true
             val msg = t.message?.lowercase() ?: ""
@@ -107,12 +114,17 @@ class ResilientSocketFactory(
         private var activeSocket: Socket = initializeSocket()
 
         private fun initializeSocket(): Socket {
-            if (primaryFactory != null) {
+            if (primaryFactory != null && !isPrimaryFactoryFailing) {
                 try {
                     currentTier = 1
                     return primaryFactory.createSocket()
                 } catch (t: Throwable) {
-                    AppLogger.w(TAG, "Primary Wi-Fi socket creation threw ${t.message}; falling back to local-bound/unbound socket")
+                    if (isPermOrBindingFailure(t)) {
+                        isPrimaryFactoryFailing = true
+                        AppLogger.d(TAG, "Primary Wi-Fi socket creation failed with ${t.message}; caching primary failure and falling back to Tier 2/3")
+                    } else {
+                        AppLogger.w(TAG, "Primary Wi-Fi socket creation threw ${t.message}; falling back to local-bound/unbound socket")
+                    }
                 }
             }
             return createTier2Or3Socket()
@@ -153,7 +165,8 @@ class ResilientSocketFactory(
                 if (!isPermOrBindingFailure(t)) {
                     if (t is IOException) throw t else throw IOException("Connection failed to $endpoint", t)
                 }
-                AppLogger.w(TAG, "Socket tier $currentTier failed connect with ${t.message} (VPN active). Falling back...")
+                isPrimaryFactoryFailing = true
+                AppLogger.d(TAG, "Socket tier $currentTier failed connect with ${t.message}. Falling back...")
                 try { activeSocket.close() } catch (_: Exception) {}
             }
 
@@ -167,14 +180,14 @@ class ResilientSocketFactory(
                         currentTier = 2
                         s.connect(endpoint, timeout)
                         activeSocket = s
-                        AppLogger.i(TAG, "Tier 2 local-bound fallback socket connected successfully to $endpoint")
+                        AppLogger.d(TAG, "Tier 2 local-bound fallback socket connected successfully to $endpoint")
                         return
                     } catch (t2: Throwable) {
                         try { s.close() } catch (_: Exception) {}
                         if (!isPermOrBindingFailure(t2)) {
                             if (t2 is IOException) throw t2 else throw IOException("Connection failed to $endpoint", t2)
                         }
-                        AppLogger.w(TAG, "Tier 2 local-bound socket failed connect with ${t2.message}. Falling back to Tier 3 unbound socket...")
+                        AppLogger.d(TAG, "Tier 2 local-bound socket failed connect with ${t2.message}. Falling back to Tier 3 unbound socket...")
                     }
                 } catch (e: Exception) {
                     AppLogger.d(TAG, "Tier 2 fallback socket setup skipped: ${e.message}")
@@ -188,7 +201,7 @@ class ResilientSocketFactory(
                 currentTier = 3
                 unbound.connect(endpoint, timeout)
                 activeSocket = unbound
-                AppLogger.i(TAG, "Tier 3 unbound system socket connected successfully to $endpoint")
+                AppLogger.d(TAG, "Tier 3 unbound system socket connected successfully to $endpoint")
             } catch (t3: Throwable) {
                 try { activeSocket.close() } catch (_: Exception) {}
                 if (t3 is IOException) throw t3 else throw IOException("All socket tiers failed to connect to $endpoint", t3)

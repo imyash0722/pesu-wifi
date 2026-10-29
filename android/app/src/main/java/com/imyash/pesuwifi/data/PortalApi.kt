@@ -74,6 +74,9 @@ object PortalApi {
      * campus portal requests bypass Mobile Data / Cellular routing and Tailscale VPN tunnels.
      */
     fun setWifiSocketFactory(factory: SocketFactory?, localAddress: java.net.InetAddress? = null) {
+        if (wifiSocketFactory != factory || wifiLocalAddress != localAddress) {
+            ResilientSocketFactory.resetFailureState()
+        }
         wifiSocketFactory = factory
         wifiLocalAddress = localAddress
     }

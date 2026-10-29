@@ -111,6 +111,7 @@ fun LogsScreen(
     var showApListDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        AppLogger.refreshFlow()
         BssidDatabase.init(context)
     }
 
