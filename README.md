@@ -17,9 +17,9 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 
 | Platform | Interface | Engine | Status | Download |
 | :--- | :--- | :--- | :--- | :--- |
-| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.5 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.5 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.5 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.6 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.6 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.6 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
 | **iOS / iPadOS** | Native Shortcuts | 1-Tap `.shortcut` Generator + Personal Automation | Live Tool | [Generate Shortcut](https://imyash0722.github.io/pesu-wifi/ios.html) |
 | **macOS** | CLI / LaunchAgent | Native Rust CLI | Compatible | Build from Source |
 
@@ -55,7 +55,7 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 ## Quick Installation
 
 ### 1. Android Phone (8.0 to 16)
-- Download the standalone **[Stable APK](https://github.com/imyash0722/pesu-wifi/releases/latest)** (`pesu-wifi-v3.7.5-android-stable.apk`) or **[Tester APK](https://github.com/imyash0722/pesu-wifi/releases/latest)**.
+- Download the standalone **[Stable APK](https://github.com/imyash0722/pesu-wifi/releases/latest)** (`pesu-wifi-v3.7.6-android-stable.apk`) or **[Tester APK](https://github.com/imyash0722/pesu-wifi/releases/latest)**.
 - Follow the interactive **[Visual Setup Guide](https://imyash0722.github.io/pesu-wifi/instructions.html)**.
 - Grant notification and battery optimization exemption permissions, add your credentials, and turn the service on.
 - Future updates can be installed with a single tap directly within the app!
@@ -65,7 +65,7 @@ Run in PowerShell (per-user install, no admin prompt needed):
 ```powershell
 irm https://raw.githubusercontent.com/imyash0722/pesu-wifi/master/install.ps1 | iex
 ```
-Or download the standalone Inno Setup **[`pesu-wifi-v3.7.5-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
+Or download the standalone Inno Setup **[`pesu-wifi-v3.7.6-windows-x86_64-setup.exe`](https://github.com/imyash0722/pesu-wifi/releases/latest)** from GitHub Releases.
 
 ### 3. Linux (Arch / Ubuntu / Fedora / Debian)
 Run in your terminal:

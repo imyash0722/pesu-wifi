@@ -142,17 +142,20 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
         }
     }
 
-    if !portal::is_portal_online() {
-        print_err(&format!(
-            "Portal gateway ({}) is unreachable. Check your Wi-Fi connection.",
-            portal::get_portal_base()
-        ));
-        return 1;
-    }
-
     if portal::check_live(Some(&username), true) {
         print_ok(&format!("Already logged in as '{}'.", username));
         return 0;
+    }
+
+    if !portal::is_portal_online() {
+        let is_campus = wifi::get_current_wifi_ssid().map(|s| wifi::is_campus_ssid(&s)).unwrap_or(false);
+        if !is_campus {
+            print_err(&format!(
+                "Portal gateway ({}) is unreachable. Connect to PESU Wi-Fi and try again.",
+                portal::get_portal_base()
+            ));
+            return 1;
+        }
     }
 
     print_info(&format!("Logging in as '{}'...", username));
@@ -201,14 +204,6 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
 
 fn cmd_logout() -> i32 {
     let (username, _) = config::get_active_credentials();
-
-    if !portal::is_portal_online() {
-        print_err(&format!(
-            "Portal gateway ({}) is unreachable. Check your Wi-Fi connection.",
-            portal::get_portal_base()
-        ));
-        return 1;
-    }
 
     if !portal::check_live(username.as_deref(), false) {
         print_ok("Already logged out. No active session found.");

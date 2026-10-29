@@ -21,7 +21,7 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="font-bold text-lg text-white tracking-tight">PESU WiFi</span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              v3.7.5
+              v3.7.6
             </span>
           </div>
         </a>
@@ -60,7 +60,7 @@ export const Navbar: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-black shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-95"
           >
             <Download className="w-4 h-4" />
-            <span>Download v3.7.5</span>
+            <span>Download v3.7.6</span>
           </a>
         </div>
       </div>

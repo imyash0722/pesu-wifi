@@ -87,13 +87,19 @@ pub fn get_timestamp() -> u128 {
 
 #[cfg(unix)]
 pub fn get_wifi_interface_name() -> Option<String> {
-    // 1. Scan sysfs for wireless devices (fast, 0 overhead, no fork/exec)
+    // 1. Scan sysfs for active wireless devices (fast, 0 overhead, no fork/exec)
     if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.join("wireless").exists() || path.join("phy80211").exists() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    return Some(name.to_string());
+                let operstate = std::fs::read_to_string(path.join("operstate"))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                if operstate != "down" {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        return Some(name.to_string());
+                    }
                 }
             }
         }
@@ -101,12 +107,12 @@ pub fn get_wifi_interface_name() -> Option<String> {
 
     // 2. Fallback: nmcli dev
     if let Ok(out) = std::process::Command::new("nmcli")
-        .args(["-t", "-f", "DEVICE,TYPE", "dev"])
+        .args(["-t", "-f", "DEVICE,TYPE,STATE", "dev"])
         .output()
     {
         let stdout = String::from_utf8_lossy(&out.stdout);
         for line in stdout.lines() {
-            if line.contains(":wifi") {
+            if line.contains(":wifi:") && !line.contains(":unavailable") && !line.contains(":unmanaged") {
                 if let Some(dev) = line.split(':').next() {
                     return Some(dev.trim().to_string());
                 }
@@ -218,36 +224,8 @@ pub fn get_default_gateway_ip() -> Option<String> {
 }
 
 #[cfg(unix)]
-pub fn connect_wifi_socket(addr: std::net::SocketAddr, timeout: Duration) -> std::io::Result<std::net::TcpStream> {
+fn connect_raw_socket(socket: libc::c_int, addr: std::net::SocketAddr, timeout: Duration) -> std::io::Result<std::net::TcpStream> {
     use std::os::unix::io::FromRawFd;
-
-    let socket = if addr.is_ipv4() {
-        unsafe { libc::socket(libc::AF_INET, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
-    } else {
-        unsafe { libc::socket(libc::AF_INET6, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
-    };
-    if socket < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-
-    // Direct interface binding: force all traffic on this socket out of physical Wi-Fi adapter
-    // SO_BINDTOIFINDEX (62) is unprivileged on modern Linux kernels (5.7+)
-    if let Some(ifname) = get_wifi_interface_name() {
-        if let Ok(c_name) = std::ffi::CString::new(ifname) {
-            let ifindex = unsafe { libc::if_nametoindex(c_name.as_ptr()) };
-            if ifindex > 0 {
-                let _ = unsafe {
-                    libc::setsockopt(
-                        socket,
-                        libc::SOL_SOCKET,
-                        libc::SO_BINDTOIFINDEX,
-                        &ifindex as *const _ as *const libc::c_void,
-                        std::mem::size_of::<libc::c_int>() as libc::socklen_t,
-                    )
-                };
-            }
-        }
-    }
 
     // Non-blocking mode for timeout handling
     unsafe {
@@ -326,7 +304,46 @@ pub fn connect_wifi_socket(addr: std::net::SocketAddr, timeout: Duration) -> std
     }
 }
 
-#[cfg(unix)]
+pub fn connect_wifi_socket(addr: std::net::SocketAddr, timeout: Duration) -> std::io::Result<std::net::TcpStream> {
+    #[cfg(unix)]
+    {
+        // Tier 1: Direct interface-bound socket (SO_BINDTOIFINDEX) to bypass VPN tunnels
+        if let Some(ifname) = get_wifi_interface_name() {
+            if let Ok(c_name) = std::ffi::CString::new(ifname) {
+                let ifindex = unsafe { libc::if_nametoindex(c_name.as_ptr()) };
+                if ifindex > 0 {
+                    let socket = if addr.is_ipv4() {
+                        unsafe { libc::socket(libc::AF_INET, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
+                    } else {
+                        unsafe { libc::socket(libc::AF_INET6, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) }
+                    };
+                    if socket >= 0 {
+                        let opt_res = unsafe {
+                            libc::setsockopt(
+                                socket,
+                                libc::SOL_SOCKET,
+                                libc::SO_BINDTOIFINDEX,
+                                &ifindex as *const _ as *const libc::c_void,
+                                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                            )
+                        };
+                        if opt_res == 0 {
+                            if let Ok(stream) = connect_raw_socket(socket, addr, timeout) {
+                                return Ok(stream);
+                            }
+                        } else {
+                            unsafe { libc::close(socket); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Resilient Tier 3 Fallback (Standard unbound system socket, matches browser routing)
+    std::net::TcpStream::connect_timeout(&addr, timeout)
+}
+
 pub fn probe_url_direct_wifi(base_url: &str, timeout_ms: u64) -> bool {
     use std::io::{Read, Write};
     use std::net::ToSocketAddrs;
@@ -349,12 +366,14 @@ pub fn probe_url_direct_wifi(base_url: &str, timeout_ms: u64) -> bool {
     let timeout = Duration::from_millis(timeout_ms);
     for addr in addrs {
         if let Ok(mut stream) = connect_wifi_socket(addr, timeout) {
+            let _ = stream.set_read_timeout(Some(timeout));
+            let _ = stream.set_write_timeout(Some(timeout));
             let req = format!(
-                "HEAD /httpclient.html HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: {}\r\nConnection: close\r\n\r\n",
+                "GET /httpclient.html HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: {}\r\nConnection: close\r\n\r\n",
                 host, port, USER_AGENT
             );
             if stream.write_all(req.as_bytes()).is_ok() {
-                let mut buf = [0u8; 256];
+                let mut buf = [0u8; 512];
                 if let Ok(n) = stream.read(&mut buf) {
                     let text = String::from_utf8_lossy(&buf[..n]);
                     if text.starts_with("HTTP/1.") {
@@ -367,7 +386,6 @@ pub fn probe_url_direct_wifi(base_url: &str, timeout_ms: u64) -> bool {
     false
 }
 
-#[cfg(unix)]
 pub fn get_direct_wifi(path_and_query: &str, timeout: Duration) -> Result<String, String> {
     use std::io::{Read, Write};
     use std::net::ToSocketAddrs;
@@ -406,7 +424,6 @@ pub fn get_direct_wifi(path_and_query: &str, timeout: Duration) -> Result<String
     Err("Direct Wi-Fi socket GET failed".to_string())
 }
 
-#[cfg(unix)]
 pub fn post_direct_wifi(path: &str, params: &[(&str, &str)], timeout: Duration) -> Result<String, String> {
     use std::io::{Read, Write};
     use std::net::ToSocketAddrs;
@@ -451,7 +468,6 @@ pub fn post_direct_wifi(path: &str, params: &[(&str, &str)], timeout: Duration) 
     Err("Direct Wi-Fi socket POST failed".to_string())
 }
 
-#[cfg(unix)]
 pub fn query_live_direct_wifi(username: &str, timeout_ms: u64) -> bool {
     let ts = get_timestamp();
     let path = format!("/live?mode=192&username={}&a={}&producttype=0", username, ts);
@@ -487,16 +503,7 @@ pub fn probe_url_alive(base_url: &str, timeout_ms: u64) -> bool {
     match req.call() {
         Ok(resp) => resp.status() >= 200 && resp.status() < 500,
         Err(ureq::Error::Status(code, _)) => code >= 200 && code < 500,
-        Err(_) => {
-            #[cfg(unix)]
-            {
-                probe_url_direct_wifi(base_url, timeout_ms)
-            }
-            #[cfg(not(unix))]
-            {
-                false
-            }
-        }
+        Err(_) => probe_url_direct_wifi(base_url, timeout_ms),
     }
 }
 
@@ -518,7 +525,54 @@ pub fn discover_portal_base() -> String {
         }
     }
 
-    // 3. Fast probe standard PESU gateway endpoints (EC/RR Campus, Amaatra Hostel)
+    // 3. SSID-based Authoritative Resolution (Highest Priority, mirrors Android resolvePortalBase)
+    if let Some(ssid) = crate::wifi::get_current_wifi_ssid() {
+        let clean = ssid.replace('"', "").trim().to_string();
+        let upper = clean.to_uppercase();
+        if upper.contains("AMAATRA") {
+            if let Some(gw) = get_default_gateway_ip() {
+                if gw == "172.16.1.1" || gw == "172.16.0.1" || gw == "192.168.1.1" {
+                    let base = format!("http://{}:8090", gw);
+                    set_portal_base(&base);
+                    return base;
+                }
+            }
+            let base = "http://172.16.1.1:8090".to_string();
+            set_portal_base(&base);
+            return base;
+        }
+        if crate::wifi::is_campus_ssid(&clean)
+            || upper.contains("PESU")
+            || upper.contains("FOODCOURT")
+            || upper.contains("CAFE")
+            || upper.contains("CIE")
+        {
+            let base = DEFAULT_PORTAL_BASE.to_string();
+            set_portal_base(&base);
+            return base;
+        }
+    }
+
+    // 4. Gateway-based Authoritative Resolution (Mirrors Android resolvePortalBase)
+    if let Some(gw) = get_default_gateway_ip() {
+        if gw == "172.16.1.1" || gw == "172.16.0.1" {
+            let base = "http://172.16.1.1:8090".to_string();
+            set_portal_base(&base);
+            return base;
+        }
+        if gw == "192.168.1.1" {
+            let base = "http://192.168.1.1:8090".to_string();
+            set_portal_base(&base);
+            return base;
+        }
+        if gw.starts_with("192.168.254.") || gw.starts_with("10.") || gw.starts_with("172.16.") {
+            let base = DEFAULT_PORTAL_BASE.to_string();
+            set_portal_base(&base);
+            return base;
+        }
+    }
+
+    // 5. Fast probe standard PESU gateway endpoints (EC/RR Campus, Amaatra Hostel)
     let standard_candidates = [
         "http://192.168.254.1:8090",
         "https://192.168.254.1:8090",
@@ -528,13 +582,13 @@ pub fn discover_portal_base() -> String {
         "https://192.168.1.1:8090",
     ];
     for &cand in &standard_candidates {
-        if probe_url_alive(cand, 1200) {
+        if probe_url_alive(cand, 1500) {
             set_portal_base(cand);
             return cand.to_string();
         }
     }
 
-    // 4. Captive Portal Probing: Query standard captive portal check URL (redirect detection)
+    // 6. Captive Portal Probing: Query standard captive portal check URL (redirect detection)
     let probe_agent = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_millis(1500))
         .timeout_read(Duration::from_millis(1500))
@@ -579,21 +633,7 @@ pub fn discover_portal_base() -> String {
         }
     }
 
-    // 5. Default route gateway IP check
-    if let Some(gw_ip) = get_default_gateway_ip() {
-        let gw_http = format!("http://{}:8090", gw_ip);
-        if probe_url_alive(&gw_http, 1200) {
-            set_portal_base(&gw_http);
-            return gw_http;
-        }
-        let gw_https = format!("https://{}:8090", gw_ip);
-        if probe_url_alive(&gw_https, 1200) {
-            set_portal_base(&gw_https);
-            return gw_https;
-        }
-    }
-
-    // 6. Secondary campus subnets fallback
+    // 7. Secondary campus subnets fallback
     let secondary_candidates = [
         "http://10.14.142.1:8090",
         "https://10.14.142.1:8090",
@@ -601,7 +641,7 @@ pub fn discover_portal_base() -> String {
         "https://172.16.1.1:8090",
     ];
     for &cand in &secondary_candidates {
-        if probe_url_alive(cand, 1000) {
+        if probe_url_alive(cand, 1200) {
             set_portal_base(cand);
             return cand.to_string();
         }
@@ -658,16 +698,7 @@ pub fn detect_portal_keepalive_interval() -> Option<u64> {
         .and_then(|r| r.into_string().ok())
     {
         Some(b) => b,
-        None => {
-            #[cfg(unix)]
-            {
-                get_direct_wifi("/httpclient.html", Duration::from_millis(3000)).ok()?
-            }
-            #[cfg(not(unix))]
-            {
-                return None;
-            }
-        }
+        None => get_direct_wifi("/httpclient.html", Duration::from_millis(3000)).ok()?,
     };
 
     for line in body.lines() {
@@ -792,14 +823,19 @@ pub fn parse_xml(xml_content: &str, username: Option<&str>) -> HashMap<String, S
 
 pub fn is_portal_online() -> bool {
     let base = get_portal_base();
-    if probe_url_alive(&base, 1500) {
+    if probe_url_alive(&base, 2000) {
+        return true;
+    }
+
+    std::thread::sleep(Duration::from_millis(200));
+    if probe_url_alive(&base, 2000) {
         return true;
     }
 
     // Portal may have moved or network changed: invalidate and rediscover across all campus gateways
     invalidate_portal_base();
     let discovered = discover_portal_base();
-    if probe_url_alive(&discovered, 1500) {
+    if probe_url_alive(&discovered, 2000) {
         set_portal_base(&discovered);
         return true;
     }
@@ -843,16 +879,7 @@ pub fn check_live(username: Option<&str>, retry: bool) -> bool {
                     false
                 }
             }
-            Err(_) => {
-                #[cfg(unix)]
-                {
-                    query_live_direct_wifi(user, 3500)
-                }
-                #[cfg(not(unix))]
-                {
-                    false
-                }
-            }
+            Err(_) => query_live_direct_wifi(user, 3500),
         }
     };
 
@@ -898,26 +925,19 @@ pub fn do_login(username: &str, password: &str) -> LoginResult {
             Err(e) => return LoginResult::Failed(format!("Invalid response body ({})", e)),
         },
         Err(e) => {
-            #[cfg(unix)]
-            {
-                match post_direct_wifi(
-                    "/login.xml",
-                    &[
-                        ("mode", "191"),
-                        ("username", username),
-                        ("password", password),
-                        ("a", &ts),
-                        ("producttype", "0"),
-                    ],
-                    Duration::from_millis(6000),
-                ) {
-                    Ok(b) => b,
-                    Err(_) => return LoginResult::Failed(format!("Portal unreachable ({})", e)),
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                return LoginResult::Failed(format!("Portal unreachable ({})", e));
+            match post_direct_wifi(
+                "/login.xml",
+                &[
+                    ("mode", "191"),
+                    ("username", username),
+                    ("password", password),
+                    ("a", &ts),
+                    ("producttype", "0"),
+                ],
+                Duration::from_millis(6000),
+            ) {
+                Ok(b) => b,
+                Err(_) => return LoginResult::Failed(format!("Portal unreachable ({})", e)),
             }
         }
     };
@@ -1024,25 +1044,18 @@ pub fn do_logout(username: Option<&str>) -> Result<String, String> {
             Err(e) => return Err(format!("Invalid response body: {}", e)),
         },
         Err(e) => {
-            #[cfg(unix)]
-            {
-                match post_direct_wifi(
-                    "/logout.xml",
-                    &[
-                        ("mode", "193"),
-                        ("username", user),
-                        ("a", &ts),
-                        ("producttype", "0"),
-                    ],
-                    Duration::from_millis(5000),
-                ) {
-                    Ok(b) => b,
-                    Err(_) => return Err(format!("Portal unreachable ({})", e)),
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                return Err(format!("Portal unreachable ({})", e));
+            match post_direct_wifi(
+                "/logout.xml",
+                &[
+                    ("mode", "193"),
+                    ("username", user),
+                    ("a", &ts),
+                    ("producttype", "0"),
+                ],
+                Duration::from_millis(5000),
+            ) {
+                Ok(b) => b,
+                Err(_) => return Err(format!("Portal unreachable ({})", e)),
             }
         }
     };

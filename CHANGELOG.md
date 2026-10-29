@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.6 — CLI Daemon Lifecycle Hardening, Direct Socket Fallback & Instant Portal Resolution](#v376--cli-daemon-lifecycle-hardening-direct-socket-fallback--instant-portal-resolution)
+  - [Overview & Major Highlights](#v376-overview--major-highlights)
 - [v3.7.5 — Comprehensive AP Catalog (40 APs), OUI Matching & Wildcard Campus SSIDs](#v375--comprehensive-ap-catalog-40-aps-oui-matching--wildcard-campus-ssids)
   - [Overview & Major Highlights](#v375-overview--major-highlights)
 - [v3.7.4 — Roaming Portal Resolution, VPN Interface Isolation & Staged Auto-Reauth](#v374--roaming-portal-resolution-vpn-interface-isolation--staged-auto-reauth)
@@ -31,6 +33,32 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.6 — CLI Daemon Lifecycle Hardening, Direct Socket Fallback & Instant Portal Resolution
+
+**Release Date:** October 29, 2026  
+**Git Tag:** [`v3.7.6`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.6)  
+**Release Type:** Critical Bugfix & Network Resilience Release
+
+### v3.7.6 Overview & Major Highlights
+
+#### 1. Fixed Daemon Process Status Inversion Bug (`pesu-wifi stop` & `status`)
+- **Problem:** `daemon::is_daemon_running()` had a fallback return of `(true, None)` when no lock was held and no process was running. This inverted daemon reporting, making `pesu-wifi status` claim the daemon watcher was always Active and causing `pesu-wifi stop` to print `Daemon process may still be stopping` even when zero processes existed.
+- **Solution:** Fixed fallback to `(false, None)`. Updated `cmd_stop()` on both Linux and Windows to read the lockfile PID directly and issue target-specific termination (`libc::kill(SIGTERM/SIGKILL)` on Unix and `taskkill /F /PID` on Windows), remove the lockfile, and cleanly verify stopped status.
+
+#### 2. Authoritative SSID & Gateway Portal Resolution (Mirroring Android)
+- **Problem:** CLI previously performed sequential speculative HTTP probes against multiple endpoints (`192.168.254.1:8090`, `172.16.1.1:8090`, etc.) before determining the portal base URL, causing login timeouts and false "Portal gateway is unreachable" errors when connected to campus Wi-Fi.
+- **Solution:** Ported Android's `resolvePortalBase()` design to Rust CLI: when connected to campus SSIDs (`PESU-EC-Campus`, `PESU-RR-Campus`, `Foodcourt`, etc.) or campus gateway subnets (`10.*`, `172.16.*`, `192.168.254.*`), the portal base is authoritatively resolved to `http://192.168.254.1:8090` in 0ms without speculative probe delays. Amaatra SSIDs immediately resolve to `http://172.16.1.1:8090`.
+
+#### 3. Cross-Platform 2-Tier Resilient Sockets (Matching Browser Behavior)
+- **Problem:** Sophos/Cyberoam captive portal drops `HEAD` probe requests with HTTP 404, while browser standard `GET` requests succeed. Additionally, raw socket binding (`SO_BINDTOIFINDEX`) on Unix could fail or be restricted on certain kernels/interfaces, with no fallback to standard sockets.
+- **Solution:** 
+  - Updated raw Wi-Fi probe requests to use standard `GET /httpclient.html` with robust 512-byte response parsing.
+  - Implemented resilient 2-tier socket fallback in `connect_wifi_socket`: Tier 1 attempts interface-bound socket (for VPN bypass); if binding or connect fails, Tier 2 falls back to a standard unbound TCP stream (`TcpStream::connect_timeout`), guaranteeing identical reachability to desktop web browsers.
+  - Enabled direct Wi-Fi socket POST and GET helpers on all platforms (Linux, macOS, Windows).
+  - Streamlined `cmd_login` and `cmd_logout` to avoid prematurely aborting when connected to campus Wi-Fi.
 
 ---
 

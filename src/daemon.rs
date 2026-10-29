@@ -143,7 +143,7 @@ pub fn is_daemon_running() -> (bool, Option<u32>) {
         }
     }
 
-    (true, None)
+    (false, None)
 }
 
 #[cfg(unix)]
@@ -923,6 +923,43 @@ pub fn cmd_start(foreground: bool) -> i32 {
 pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
 
+    let lock_path = get_lock_file_path();
+    let lock_pid = if let Ok(mut f) = std::fs::File::open(&lock_path) {
+        use std::io::Read;
+        let mut s = String::new();
+        if f.read_to_string(&mut s).is_ok() {
+            s.trim().parse::<u32>().ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let (_, query_pid) = is_daemon_running();
+    let target_pid = lock_pid.or(query_pid);
+
+    if let Some(pid) = target_pid {
+        let current_pid = std::process::id();
+        if pid != current_pid {
+            unsafe {
+                libc::kill(pid as i32, libc::SIGTERM);
+            }
+            for _ in 0..6 {
+                sleep(Duration::from_millis(100));
+                let (active, _) = is_daemon_running();
+                if !active {
+                    break;
+                }
+            }
+            unsafe {
+                if libc::kill(pid as i32, 0) == 0 {
+                    libc::kill(pid as i32, libc::SIGKILL);
+                }
+            }
+        }
+    }
+
     let _ = Command::new("systemctl")
         .args(["stop", "pesu-wifi.service"])
         .output();
@@ -935,7 +972,9 @@ pub fn cmd_stop() -> i32 {
         .args(["-f", "pesu[-_]wifi.*(daemon|start)"])
         .output();
 
-    sleep(Duration::from_millis(500));
+    let _ = std::fs::remove_file(&lock_path);
+
+    sleep(Duration::from_millis(300));
     let (still_active, _) = is_daemon_running();
     if !still_active {
         print_ok("PESU WiFi daemon stopped.");
@@ -949,14 +988,40 @@ pub fn cmd_stop() -> i32 {
 pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
 
+    let lock_path = get_lock_file_path();
+    let lock_pid = if let Ok(mut f) = std::fs::File::open(&lock_path) {
+        use std::io::Read;
+        let mut s = String::new();
+        if f.read_to_string(&mut s).is_ok() {
+            s.trim().parse::<u32>().ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let (_, query_pid) = is_daemon_running();
+    let target_pid = lock_pid.or(query_pid);
     let current_pid = std::process::id();
+
+    if let Some(pid) = target_pid {
+        if pid != current_pid {
+            let _ = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+    }
+
     let script = format!(
-        "Get-CimInstance Win32_Process -Filter \"Name like 'pesu%wifi%'\" | Where-Object {{ $_.ProcessId -ne {} -and $_.CommandLine -like '*daemon*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}",
+        "Get-CimInstance Win32_Process -Filter \"Name like 'pesu%wifi%'\" | Where-Object {{ $_.ProcessId -ne {} }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}",
         current_pid
     );
     let _ = Command::new("powershell")
         .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
         .output();
+
+    let _ = std::fs::remove_file(&lock_path);
 
     sleep(Duration::from_millis(500));
     let (still_active, _) = is_daemon_running();
