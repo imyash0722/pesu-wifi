@@ -69,6 +69,11 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - `install.sh`: Automatically stops `pesu-wifi.service` prior to binary installation and uses atomic `install -m 755` for both `~/.local/bin` and `/usr/local/bin`.
   - `install.ps1`: Stops running `pesu-wifi` processes before copying or unzipping the new binary.
 
+#### 5. Mobile (Android) Resilient Sockets & Zero-VPN Interference
+- **Multi-Tier Timeout Escalation:** In `ResilientSocketFactory`, updated `connect()` to treat `SocketTimeoutException` as an escalation trigger, allowing sockets blackholed by active VPN/Tailscale routing tables to fall back dynamically to Tier 3 unbound system sockets.
+- **Persistent Wi-Fi Process Binding:** Removed transient `bindProcessToNetwork(null)` reset calls in `PortalRepository`, keeping the app process pinned to the physical Wi-Fi interface while connected and preventing VPN default routes from hijacking keepalive requests.
+- **Re-Auth Storm Suppression:** Guarded `triggerFastReauth` in `WifiKeepaliveService` to only execute when IP or Gateway actually changes, preventing re-authentication churn when VPN/Tailscale interfaces are enabled or disabled.
+
 ---
 
 ## v3.7.6 — CLI Daemon Lifecycle Hardening, Direct Socket Fallback & Instant Portal Resolution
