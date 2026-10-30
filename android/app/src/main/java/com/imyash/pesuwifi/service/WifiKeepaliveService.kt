@@ -945,7 +945,8 @@ class WifiKeepaliveService : Service() {
         } else {
             portalRepository.isCampusNetwork(network)
         }
-        if (hasIpv4 && isCampus && !isAuthBackoffActive) {
+        val isAlreadyLoggedIn = portalRepository.statusFlow.value.isLoggedIn
+        if (hasIpv4 && isCampus && !isAuthBackoffActive && (!isAlreadyLoggedIn || ipChanged || gatewayChanged)) {
             val validIpv4 = currentIps.firstOrNull { it.contains(".") && !it.startsWith("127.") } ?: ""
             triggerFastReauth(network, validIpv4)
         }
@@ -1000,6 +1001,9 @@ class WifiKeepaliveService : Service() {
         if (activeWifiNetwork == network) {
             activeWifiNetwork = null
         }
+        try {
+            connectivityManager.bindProcessToNetwork(null)
+        } catch (_: Exception) {}
         val hadCampus = wasCampusNetwork
         wasCampusNetwork = false
         lastBssid = null

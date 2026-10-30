@@ -162,7 +162,7 @@ class ResilientSocketFactory(
                 activeSocket.connect(endpoint, timeout)
                 return
             } catch (t: Throwable) {
-                if (!isPermOrBindingFailure(t)) {
+                if (!isPermOrBindingFailure(t) && t !is java.net.SocketTimeoutException) {
                     if (t is IOException) throw t else throw IOException("Connection failed to $endpoint", t)
                 }
                 isPrimaryFactoryFailing = true
@@ -184,7 +184,7 @@ class ResilientSocketFactory(
                         return
                     } catch (t2: Throwable) {
                         try { s.close() } catch (_: Exception) {}
-                        if (!isPermOrBindingFailure(t2)) {
+                        if (!isPermOrBindingFailure(t2) && t2 !is java.net.SocketTimeoutException) {
                             if (t2 is IOException) throw t2 else throw IOException("Connection failed to $endpoint", t2)
                         }
                         AppLogger.d(TAG, "Tier 2 local-bound socket failed connect with ${t2.message}. Falling back to Tier 3 unbound socket...")

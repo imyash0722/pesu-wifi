@@ -313,6 +313,7 @@ pub fn heal_network(tier: u8) {
 
     if is_vpn_active() {
         log("[Self-Healing] Active VPN/Tailscale interface detected. Suppressing physical Wi-Fi disconnect to protect active tunnels & self-hosted services.");
+        ensure_vpn_bypass_routes(&wifi_con);
         if let Some(iface) = crate::portal::get_wifi_interface_name() {
             let _ = Command::new("nmcli").args(["device", "reapply", &iface]).output();
         }
@@ -508,6 +509,32 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
                     log(&format!(
                         "⚡ Configured VPN bypass route for {} via gateway {} on '{}'",
                         target, gw, ssid
+                    ));
+                }
+            }
+        }
+    }
+
+    // Direct NetworkManager routing rules for Tailscale / WireGuard compatibility:
+    let existing_nm_rules = Command::new("nmcli")
+        .args(["-g", "ipv4.routing-rules", "connection", "show", ssid])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+
+    for target in portal_ips {
+        let ip_target = target.trim_end_matches("/32");
+        if !existing_nm_rules.contains(ip_target) {
+            let rule_entry = format!("priority 5200 to {} table main", ip_target);
+            let res = Command::new("nmcli")
+                .args(["connection", "modify", ssid, "+ipv4.routing-rules", &rule_entry])
+                .output();
+            if let Ok(out) = res {
+                if out.status.success() {
+                    routes_modified = true;
+                    log(&format!(
+                        "⚡ Configured VPN bypass policy rule for {} (priority 5200 -> main) on '{}'",
+                        ip_target, ssid
                     ));
                 }
             }

@@ -311,8 +311,7 @@ class PortalRepository(
             } catch (_: Exception) {}
         }
 
-        try {
-            val localIp = getWifiLocalAddress(wifiNet)
+        val localIp = getWifiLocalAddress(wifiNet)
         val gw = getDefaultGateway(wifiNet)
         val vpnActive = isVpnActive()
         api.portalBaseUrl = resolvePortalBase(wifiNet)
@@ -483,11 +482,6 @@ class PortalRepository(
         _statusFlow.value = status
         AppLogger.i("PortalRepository", "refreshStatus: PESU Wi-Fi active (loggedIn=$loggedIn, latency=${latency}ms)")
         status
-        } finally {
-            try {
-                cm?.bindProcessToNetwork(null)
-            } catch (_: Exception) {}
-        }
     }
 
     private fun isFailoverCandidateError(e: Throwable?): Boolean {
@@ -516,9 +510,8 @@ class PortalRepository(
         try {
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
-        try {
-            api.portalBaseUrl = resolvePortalBase(wifiNet)
-            api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
+        api.portalBaseUrl = resolvePortalBase(wifiNet)
+        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
             val username = targetUsername ?: accountRepository.getActiveUser()
                 ?: run {
@@ -591,11 +584,6 @@ class PortalRepository(
             }
 
             result
-        } finally {
-            try {
-                connectivityManager?.bindProcessToNetwork(null)
-            } catch (_: Exception) {}
-        }
     }
 
     suspend fun logout(): Result<String> = withContext(Dispatchers.IO) {
@@ -612,9 +600,8 @@ class PortalRepository(
         try {
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
-        try {
-            api.portalBaseUrl = resolvePortalBase(wifiNet)
-            api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
+        api.portalBaseUrl = resolvePortalBase(wifiNet)
+        api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
             // Immediately update statusFlow so UI switches to disconnected state without waiting
             val current = _statusFlow.value
@@ -634,11 +621,6 @@ class PortalRepository(
             val result = api.logout(username)
             refreshStatus()
             result
-        } finally {
-            try {
-                connectivityManager?.bindProcessToNetwork(null)
-            } catch (_: Exception) {}
-        }
     }
 
     companion object {
