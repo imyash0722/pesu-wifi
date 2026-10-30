@@ -29,6 +29,14 @@ if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
+# Stop running instance if upgrading to avoid locked executable
+if (Test-Path $ExePath) {
+    try {
+        & $ExePath stop | Out-Null
+    } catch {}
+    Get-Process -Name "pesu-wifi" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 $Installed = $false
 
 # 1. Use local precompiled binary if present alongside script (e.g. unzipped release)

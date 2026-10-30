@@ -57,16 +57,18 @@ if [ -z "$BUILD_BIN" ] || [ ! -f "$BUILD_BIN" ]; then
     exit 1
 fi
 
+# Gracefully stop active user daemon during upgrade so running binary isn't locked
+if command -v systemctl &>/dev/null; then
+    systemctl --user stop pesu-wifi.service 2>/dev/null || true
+fi
+
 mkdir -p "$BIN_DIR"
-rm -f "$BIN_DIR/pesu-wifi"
-cp "$BUILD_BIN" "$BIN_DIR/pesu-wifi"
-chmod +x "$BIN_DIR/pesu-wifi"
+install -m 755 "$BUILD_BIN" "$BIN_DIR/pesu-wifi"
 echo "  ✔ Installed binary to: $BIN_DIR/pesu-wifi"
 
 # Try installing to /usr/local/bin if writable
 if [ -w "/usr/local/bin" ]; then
-    rm -f "/usr/local/bin/pesu-wifi"
-    cp "$BUILD_BIN" "/usr/local/bin/pesu-wifi"
+    install -m 755 "$BUILD_BIN" "/usr/local/bin/pesu-wifi"
     echo "  ✔ Copied to /usr/local/bin/pesu-wifi"
 fi
 

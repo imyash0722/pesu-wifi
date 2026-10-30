@@ -257,6 +257,50 @@ pub fn get_active_wifi_ssid() -> String {
 }
 
 #[cfg(unix)]
+pub fn is_vpn_active() -> bool {
+    if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with("tun")
+                || name.starts_with("tap")
+                || name.starts_with("wg")
+                || name.starts_with("tailscale")
+                || name.starts_with("proton")
+                || name.starts_with("wireguard")
+            {
+                let operstate = std::fs::read_to_string(entry.path().join("operstate"))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                if operstate != "down" {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+#[cfg(windows)]
+pub fn is_vpn_active() -> bool {
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            "(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { ($_.InterfaceDescription -like '*WireGuard*' -or $_.InterfaceDescription -like '*Wintun*' -or $_.InterfaceDescription -like '*TAP*' -or $_.InterfaceDescription -like '*Tailscale*' -or $_.InterfaceAlias -like '*Tailscale*') -and $_.Status -eq 'Up' } | Measure-Object).Count",
+        ])
+        .output()
+        .ok();
+    if let Some(out) = output {
+        let count_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if let Ok(count) = count_str.parse::<usize>() {
+            return count > 0;
+        }
+    }
+    false
+}
+
+#[cfg(unix)]
 pub fn heal_network(tier: u8) {
     let wifi_con = get_current_wifi_ssid().unwrap_or_else(get_active_wifi_ssid);
     if !is_campus_ssid(&wifi_con) {
@@ -264,6 +308,14 @@ pub fn heal_network(tier: u8) {
             "[Self-Healing] Skipped: '{}' is not a PESU campus network.",
             wifi_con
         ));
+        return;
+    }
+
+    if is_vpn_active() {
+        log("[Self-Healing] Active VPN/Tailscale interface detected. Suppressing physical Wi-Fi disconnect to protect active tunnels & self-hosted services.");
+        if let Some(iface) = crate::portal::get_wifi_interface_name() {
+            let _ = Command::new("nmcli").args(["device", "reapply", &iface]).output();
+        }
         return;
     }
 
@@ -319,6 +371,12 @@ pub fn heal_network(tier: u8) {
             "[Self-Healing] Skipped: '{}' is not a PESU campus network.",
             wifi_con
         ));
+        return;
+    }
+
+    if is_vpn_active() {
+        log("[Self-Healing] Active VPN/Tailscale interface detected. Suppressing physical Wi-Fi disconnect to protect active tunnels & self-hosted services.");
+        ensure_vpn_bypass_routes(&wifi_con);
         return;
     }
 
@@ -437,6 +495,7 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
 
+    let mut routes_modified = false;
     for target in portal_ips {
         if !existing_routes.contains(target) {
             let route_entry = format!("{} {}", target, gw);
@@ -445,12 +504,50 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
                 .output();
             if let Ok(out) = res {
                 if out.status.success() {
+                    routes_modified = true;
                     log(&format!(
                         "⚡ Configured VPN bypass route for {} via gateway {} on '{}'",
                         target, gw, ssid
                     ));
                 }
             }
+        }
+    }
+
+    // Direct kernel route insertion & live reapply without dropping connection:
+    let iface_opt = crate::portal::get_wifi_interface_name();
+    if let Some(ref iface) = iface_opt {
+        // 1. Instantly inject kernel routes into main table (zero overhead, no reconnect needed)
+        for target in portal_ips {
+            let ip_target = target.trim_end_matches("/32");
+            let _ = Command::new("ip")
+                .args(["route", "replace", ip_target, "via", &gw, "dev", iface])
+                .output();
+        }
+
+        // 2. Policy routing rule for Tailscale / WireGuard compatibility:
+        // Tailscale uses priority 5270 (lookup 52). Add rule at priority 5200 to look up main table for portal IPs!
+        let existing_rules = Command::new("ip")
+            .args(["rule", "show"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default();
+
+        for target in portal_ips {
+            let ip_target = target.trim_end_matches("/32");
+            if !existing_rules.contains(&format!("to {}", ip_target)) {
+                let _ = Command::new("ip")
+                    .args(["rule", "add", "to", ip_target, "lookup", "main", "pref", "5200"])
+                    .output();
+            }
+        }
+
+        // 3. If NetworkManager profile was modified, reapply live without disconnecting Wi-Fi
+        if routes_modified {
+            let _ = Command::new("nmcli")
+                .args(["device", "reapply", iface])
+                .output();
+            log(&format!("⚡ Dynamically reapplied routes to live device '{}' (0ms downtime)", iface));
         }
     }
 }
@@ -521,5 +618,10 @@ mod tests {
         // Non-campus networks must safely do nothing
         ensure_vpn_bypass_routes("Home_Network");
         ensure_vpn_bypass_routes("");
+    }
+
+    #[test]
+    fn test_is_vpn_active() {
+        let _ = is_vpn_active();
     }
 }

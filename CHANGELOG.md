@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.7 — Zero-Disconnect VPN/Tailscale Coexistence, Persistent Listen Ports, Dynamic Route Injection & Netlink Filter Hardening](#v377--zero-disconnect-vpntailscale-coexistence-persistent-listen-ports-dynamic-route-injection--netlink-filter-hardening)
+  - [Overview & Major Highlights](#v377-overview--major-highlights)
 - [v3.7.6 — CLI Daemon Lifecycle Hardening, Direct Socket Fallback & Instant Portal Resolution](#v376--cli-daemon-lifecycle-hardening-direct-socket-fallback--instant-portal-resolution)
   - [Overview & Major Highlights](#v376-overview--major-highlights)
 - [v3.7.5 — Comprehensive AP Catalog (40 APs), OUI Matching & Wildcard Campus SSIDs](#v375--comprehensive-ap-catalog-40-aps-oui-matching--wildcard-campus-ssids)
@@ -33,6 +35,39 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.7 — Zero-Disconnect VPN/Tailscale Coexistence, Persistent Listen Ports, Dynamic Route Injection & Netlink Filter Hardening
+
+**Release Date:** October 30, 2026  
+**Git Tag:** [`v3.7.7`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.7)  
+**Release Type:** Network Coexistence & Infrastructure Stability Release
+
+### v3.7.7 Overview & Major Highlights
+
+#### 1. Zero-Disconnect Network Healing During Active VPN/Tailscale Sessions
+- **Problem:** `wifi::heal_network()` previously attempted full network re-association (`nmcli connection up <ssid>` on Linux or interface bounce on Windows) when transient portal unreachability occurred. When a VPN or Tailscale node was running, bouncing the physical Wi-Fi connection wiped kernel routing states, dropped assigned IP addresses, and severed active Tailscale self-hosted services and peer-to-peer tunnels.
+- **Solution:** Introduced cross-platform `is_vpn_active()` interface detection (monitoring `tailscale*`, `tun*`, `tap*`, `wg*`, `proton*`, and `wireguard*` adapters). When an active VPN interface is detected, `heal_network()` suppresses physical adapter teardown and instead executes non-destructive live route reapplications (`nmcli device reapply <iface>`), keeping self-hosted tunnels completely uninterrupted.
+
+#### 2. Persistent Port & Policy Routing Compatibility (Tailscale Self-Hosting)
+- **Problem:** Tailscale manages routing via custom table 52 (`rule 5270: from all lookup 52`). With exit nodes or subnet routing active, standard routing table entries can be bypassed, causing Cyberoam portal keepalive queries to be routed into the VPN tunnel where they drop.
+- **Solution:** 
+  - Added dedicated policy routing rules in `wifi::ensure_vpn_bypass_routes()`: `ip rule add to <portal_ip> lookup main pref 5200` (evaluating before Tailscale's rule 5270). Portal traffic is routed via the physical gateway interface regardless of active VPN configuration.
+  - Injected `/32` host routes directly into the kernel via `ip route replace` and NetworkManager live device reapply (`nmcli device reapply`), eliminating the need to reconnect to Wi-Fi for route modifications to take effect.
+  - Tailscale's persistent listen port (`PORT="41641"` in `/etc/default/tailscaled`) and direct peer connections operate simultaneously with zero collision.
+
+#### 3. Netlink Kernel Event Scoping & Unflagged Telemetry Filtering
+- **Problem:** `daemon::is_daemon_running()` was firing event-driven keepalives every 16 seconds. Netlink multicast group `RTMGRP_NOTIFY` was catching internal WireGuard/Tailscale STUN route chatter, and wireless chipsets periodically emit unflagged `RTM_NEWLINK` status reports with `ifi_change == 0`.
+- **Solution:** 
+  - Scoped Netlink multicast subscriptions strictly to `RTMGRP_LINK | RTMGRP_IPV4_IFADDR`.
+  - Added Netlink message inspection in `wait_event()`: ignores unflagged wireless telemetry notifications (`ifi_change == 0`), allowing the daemon to sleep for the full 180s keepalive interval while preserving sub-millisecond instant wakeup on genuine interface disconnection (`ifi_change != 0`, `RTM_DELLINK`, `RTM_NEWADDR`).
+
+#### 4. Installer Upgrade Hardening
+- **Problem:** Upgrading `pesu-wifi` while the systemd user daemon or Windows background process was executing failed with `Text file busy` (Linux) or file lock errors (Windows).
+- **Solution:**
+  - `install.sh`: Automatically stops `pesu-wifi.service` prior to binary installation and uses atomic `install -m 755` for both `~/.local/bin` and `/usr/local/bin`.
+  - `install.ps1`: Stops running `pesu-wifi` processes before copying or unzipping the new binary.
 
 ---
 

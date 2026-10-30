@@ -281,6 +281,49 @@ pub struct OsNetworkListener {
 }
 
 #[cfg(unix)]
+fn is_meaningful_netlink_event(buf: &[u8], n: usize) -> bool {
+    let nlmsg_hdr_size = std::mem::size_of::<libc::nlmsghdr>();
+    let ifinfo_size = std::mem::size_of::<libc::ifinfomsg>();
+
+    let mut offset = 0;
+    while offset + nlmsg_hdr_size <= n {
+        let nlh = unsafe { &*(buf.as_ptr().add(offset) as *const libc::nlmsghdr) };
+        let msg_len = nlh.nlmsg_len as usize;
+        if msg_len < nlmsg_hdr_size || offset + msg_len > n {
+            break;
+        }
+
+        match nlh.nlmsg_type {
+            libc::RTM_NEWADDR | libc::RTM_DELADDR | libc::RTM_DELLINK => {
+                return true;
+            }
+            libc::RTM_NEWLINK => {
+                if msg_len >= nlmsg_hdr_size + ifinfo_size {
+                    let ifi = unsafe {
+                        &*(buf.as_ptr().add(offset + nlmsg_hdr_size) as *const libc::ifinfomsg)
+                    };
+                    // When the kernel sends RTM_NEWLINK, ifi_change indicates mask of changed flags.
+                    // If ifi_change is 0, it's an unflagged telemetry/stats update (e.g. Wi-Fi survey), not a state change.
+                    if ifi.ifi_change != 0 {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        // Align to NLMSG_ALIGN (4 bytes)
+        let aligned_len = (msg_len + 3) & !3;
+        if aligned_len == 0 {
+            break;
+        }
+        offset += aligned_len;
+    }
+
+    false
+}
+
+#[cfg(unix)]
 impl OsNetworkListener {
     pub fn new() -> Result<Self, String> {
         let fd = unsafe {
@@ -302,8 +345,8 @@ impl OsNetworkListener {
         // Multicast groups:
         // RTMGRP_LINK (0x01): Interface up/down, carrier on/off
         // RTMGRP_IPV4_IFADDR (0x10): IPv4 address assigned / renewed via DHCP
-        // RTMGRP_NOTIFY (0x02): Routing / link notifications
-        sa.nl_groups = (libc::RTMGRP_LINK | libc::RTMGRP_IPV4_IFADDR | libc::RTMGRP_NOTIFY) as u32;
+        // (RTMGRP_NOTIFY omitted to avoid waking on internal VPN/Tailscale STUN route chatter)
+        sa.nl_groups = (libc::RTMGRP_LINK | libc::RTMGRP_IPV4_IFADDR) as u32;
 
         let ret = unsafe {
             libc::bind(
@@ -322,51 +365,81 @@ impl OsNetworkListener {
     }
 
     pub fn wait_event(&self, timeout: Option<Duration>) -> Result<OsEvent, String> {
-        let mut pfd = libc::pollfd {
-            fd: self.fd,
-            events: libc::POLLIN,
-            revents: 0,
-        };
-        let timeout_ms = match timeout {
-            Some(d) => d.as_millis().min(i32::MAX as u128) as libc::c_int,
-            None => -1,
-        };
+        let start_time = std::time::Instant::now();
 
-        let ret = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
-        if ret < 0 {
-            let err = std::io::Error::last_os_error();
-            if err.kind() == std::io::ErrorKind::Interrupted {
+        loop {
+            let remaining_timeout = match timeout {
+                Some(total) => {
+                    let elapsed = start_time.elapsed();
+                    if elapsed >= total {
+                        return Ok(OsEvent::Timeout);
+                    }
+                    Some(total - elapsed)
+                }
+                None => None,
+            };
+
+            let timeout_ms = match remaining_timeout {
+                Some(d) => d.as_millis().min(i32::MAX as u128) as libc::c_int,
+                None => -1,
+            };
+
+            let mut pfd = libc::pollfd {
+                fd: self.fd,
+                events: libc::POLLIN,
+                revents: 0,
+            };
+
+            let ret = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+            if ret < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::Interrupted {
+                    return Ok(OsEvent::Timeout);
+                }
+                return Err(format!("Netlink poll error: {}", err));
+            } else if ret == 0 {
                 return Ok(OsEvent::Timeout);
             }
-            return Err(format!("Netlink poll error: {}", err));
-        } else if ret == 0 {
-            return Ok(OsEvent::Timeout);
-        }
 
-        let mut buf = [0u8; 4096];
-        let n = unsafe {
-            libc::recv(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
-        };
-        if n < 0 {
-            let err = std::io::Error::last_os_error();
-            if err.kind() == std::io::ErrorKind::WouldBlock {
-                return Ok(OsEvent::Timeout);
+            let mut buf = [0u8; 4096];
+            let n = unsafe {
+                libc::recv(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0)
+            };
+            if n < 0 {
+                let err = std::io::Error::last_os_error();
+                if err.kind() == std::io::ErrorKind::WouldBlock {
+                    continue;
+                }
+                return Err(format!("Netlink recv error: {}", err));
             }
-            return Err(format!("Netlink recv error: {}", err));
+
+            let mut meaningful = is_meaningful_netlink_event(&buf, n as usize);
+
+            // Debounce: wait 250ms and drain any buffered burst messages from the same state transition
+            sleep(Duration::from_millis(250));
+            loop {
+                let burst_n = unsafe {
+                    libc::recv(
+                        self.fd,
+                        buf.as_mut_ptr() as *mut libc::c_void,
+                        buf.len(),
+                        libc::MSG_DONTWAIT,
+                    )
+                };
+                if burst_n <= 0 {
+                    break;
+                }
+                if is_meaningful_netlink_event(&buf, burst_n as usize) {
+                    meaningful = true;
+                }
+            }
+
+            if meaningful {
+                return Ok(OsEvent::NetworkChange("Netlink (rtnetlink link/addr event)".to_string()));
+            }
+
+            // Unflagged link telemetry: ignore and continue waiting for next event or timeout
         }
-
-        // Debounce: wait 250ms and drain any buffered burst messages from the same state transition
-        sleep(Duration::from_millis(250));
-        while unsafe {
-            libc::recv(
-                self.fd,
-                buf.as_mut_ptr() as *mut libc::c_void,
-                buf.len(),
-                libc::MSG_DONTWAIT,
-            )
-        } > 0 {}
-
-        Ok(OsEvent::NetworkChange("Netlink (rtnetlink link/addr event)".to_string()))
     }
 }
 
@@ -1075,6 +1148,31 @@ mod tests {
         let res = listener.wait_event(Some(Duration::from_millis(50)));
         assert_eq!(res, Ok(OsEvent::Timeout));
         assert!(start.elapsed() >= Duration::from_millis(45));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_is_meaningful_netlink_event() {
+        // Test 1: RTM_NEWLINK with ifi_change = 0 (unflagged telemetry) -> should be false
+        let mut buf = vec![0u8; 64];
+        let nlh = unsafe { &mut *(buf.as_mut_ptr() as *mut libc::nlmsghdr) };
+        nlh.nlmsg_len = 32;
+        nlh.nlmsg_type = libc::RTM_NEWLINK;
+        let ifi = unsafe { &mut *(buf.as_mut_ptr().add(std::mem::size_of::<libc::nlmsghdr>()) as *mut libc::ifinfomsg) };
+        ifi.ifi_change = 0;
+        assert!(!is_meaningful_netlink_event(&buf, 32));
+
+        // Test 2: RTM_NEWLINK with ifi_change != 0 (actual interface state change) -> should be true
+        ifi.ifi_change = libc::IFF_UP as u32;
+        assert!(is_meaningful_netlink_event(&buf, 32));
+
+        // Test 3: RTM_NEWADDR (IP assigned) -> should be true
+        nlh.nlmsg_type = libc::RTM_NEWADDR;
+        assert!(is_meaningful_netlink_event(&buf, 32));
+
+        // Test 4: RTM_DELLINK (Interface removed) -> should be true
+        nlh.nlmsg_type = libc::RTM_DELLINK;
+        assert!(is_meaningful_netlink_event(&buf, 32));
     }
 }
 
