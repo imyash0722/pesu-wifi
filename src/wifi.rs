@@ -43,6 +43,99 @@ pub fn get_current_wifi_bssid() -> Option<String> {
     None
 }
 
+#[cfg(unix)]
+pub fn get_current_wifi_signal() -> Option<i32> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "active,signal", "dev", "wifi"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        if line.starts_with("yes:") {
+            let sig_str = line.trim_start_matches("yes:").trim();
+            if let Ok(sig) = sig_str.parse::<i32>() {
+                return Some(sig);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(unix)]
+pub fn scan_and_find_stronger_campus_ap(
+    _current_ssid: &str,
+    current_bssid: Option<&str>,
+    current_signal: i32,
+) -> Option<(String, i32)> {
+    let output = Command::new("nmcli")
+        .args(["-t", "-f", "active,bssid,signal,ssid", "dev", "wifi"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut best_candidate: Option<(String, i32)> = None;
+
+    for line in text.lines() {
+        let unescaped = line.replace("\\:", "__COLON__");
+        let fields: Vec<&str> = unescaped.split(':').collect();
+        if fields.len() >= 4 {
+            let bssid = fields[1].replace("__COLON__", ":").trim().to_uppercase();
+            let signal = fields[2].trim().parse::<i32>().unwrap_or(0);
+            let ssid = fields[3..].join(":").replace("__COLON__", ":").trim().to_string();
+
+            if is_campus_ssid(&ssid) {
+                if let Some(curr_b) = current_bssid {
+                    if curr_b.eq_ignore_ascii_case(&bssid) {
+                        continue;
+                    }
+                }
+                if signal >= current_signal + 15 && signal >= 50 {
+                    if let Some((_, best_sig)) = best_candidate {
+                        if signal > best_sig {
+                            best_candidate = Some((bssid, signal));
+                        }
+                    } else {
+                        best_candidate = Some((bssid, signal));
+                    }
+                }
+            }
+        }
+    }
+
+    best_candidate
+}
+
+#[cfg(unix)]
+pub fn steer_to_bssid(ssid: &str, target_bssid: &str) -> bool {
+    let output = Command::new("nmcli")
+        .args(["dev", "wifi", "connect", ssid, "bssid", target_bssid])
+        .output();
+
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                log(&format!(
+                    "⚡ Successfully steered Wi-Fi association to router '{}' on '{}'",
+                    target_bssid, ssid
+                ));
+                true
+            } else {
+                let err = String::from_utf8_lossy(&out.stderr);
+                log(&format!(
+                    "⚠ nmcli steer to bssid '{}' returned: {}",
+                    target_bssid, err.trim()
+                ));
+                false
+            }
+        }
+        Err(e) => {
+            log(&format!("⚠ Failed executing nmcli steer: {}", e));
+            false
+        }
+    }
+}
+
 #[cfg(windows)]
 pub fn get_current_wifi_ssid() -> Option<String> {
     if let Some(ssid) = get_current_wifi_ssid_wlanapi() {
@@ -57,6 +150,148 @@ pub fn get_current_wifi_bssid() -> Option<String> {
         return Some(bssid);
     }
     get_current_wifi_bssid_netsh()
+}
+
+#[cfg(windows)]
+pub fn get_current_wifi_signal() -> Option<i32> {
+    if let Some(sig) = get_current_wifi_signal_wlanapi() {
+        return Some(sig);
+    }
+    get_current_wifi_signal_netsh()
+}
+
+#[cfg(windows)]
+fn get_current_wifi_signal_wlanapi() -> Option<i32> {
+    use windows_sys::Win32::NetworkManagement::WiFi::*;
+    unsafe {
+        let mut client_version = 0;
+        let mut handle: *mut std::ffi::c_void = std::ptr::null_mut();
+        let res = WlanOpenHandle(2, std::ptr::null(), &mut client_version, &mut handle);
+        if res != 0 || handle.is_null() {
+            return None;
+        }
+
+        let mut interface_list = std::ptr::null_mut();
+        let res = WlanEnumInterfaces(handle, std::ptr::null_mut(), &mut interface_list);
+        if res != 0 || interface_list.is_null() {
+            WlanCloseHandle(handle, std::ptr::null_mut());
+            return None;
+        }
+
+        let mut active_signal = None;
+        let num_items = (*interface_list).dwNumberOfItems;
+        for i in 0..num_items {
+            let info = (*interface_list).InterfaceInfo[i as usize];
+            if info.isState == wlan_interface_state_connected {
+                let mut data_size = 0;
+                let mut data_ptr = std::ptr::null_mut();
+                let mut opcode_value_type = 0;
+                let res = WlanQueryInterface(
+                    handle,
+                    &info.InterfaceGuid,
+                    wlan_intf_opcode_current_connection,
+                    std::ptr::null_mut(),
+                    &mut data_size,
+                    &mut data_ptr,
+                    &mut opcode_value_type,
+                );
+                if res == 0 && !data_ptr.is_null() {
+                    let conn = data_ptr as *const WLAN_CONNECTION_ATTRIBUTES;
+                    let signal = (*conn).wlanAssociationAttributes.wlanSignalQuality as i32;
+                    active_signal = Some(signal);
+                    WlanFreeMemory(data_ptr);
+                    break;
+                }
+            }
+        }
+
+        WlanFreeMemory(interface_list as *mut std::ffi::c_void);
+        WlanCloseHandle(handle, std::ptr::null_mut());
+        active_signal
+    }
+}
+
+#[cfg(windows)]
+fn get_current_wifi_signal_netsh() -> Option<i32> {
+    let output = Command::new("netsh")
+        .args(["wlan", "show", "interfaces"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        let line_lower = line.to_lowercase();
+        if line_lower.contains("signal") && line.contains(':') {
+            let val = line.split(':').nth(1)?.trim().trim_end_matches('%').trim();
+            if let Ok(sig) = val.parse::<i32>() {
+                return Some(sig);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+pub fn scan_and_find_stronger_campus_ap(
+    _current_ssid: &str,
+    current_bssid: Option<&str>,
+    current_signal: i32,
+) -> Option<(String, i32)> {
+    let output = Command::new("netsh")
+        .args(["wlan", "show", "networks", "mode=bssid"])
+        .output()
+        .ok()?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut current_parsed_ssid = String::new();
+    let mut current_parsed_bssid = String::new();
+    let mut best_candidate: Option<(String, i32)> = None;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.to_lowercase().starts_with("ssid ") && trimmed.contains(':') {
+            if let Some(s) = trimmed.split(':').nth(1) {
+                current_parsed_ssid = s.trim().to_string();
+            }
+        } else if trimmed.to_lowercase().starts_with("bssid ") && trimmed.contains(':') {
+            if let Some(b) = trimmed.split(':').nth(1) {
+                current_parsed_bssid = b.trim().to_uppercase();
+            }
+        } else if trimmed.to_lowercase().starts_with("signal") && trimmed.contains(':') {
+            if let Some(sig_str) = trimmed.split(':').nth(1) {
+                let sig = sig_str.trim().trim_end_matches('%').trim().parse::<i32>().unwrap_or(0);
+                if is_campus_ssid(&current_parsed_ssid) && !current_parsed_bssid.is_empty() {
+                    if let Some(curr_b) = current_bssid {
+                        if curr_b.eq_ignore_ascii_case(&current_parsed_bssid) {
+                            continue;
+                        }
+                    }
+                    if sig >= current_signal + 15 && sig >= 50 {
+                        if let Some((_, best_sig)) = best_candidate {
+                            if sig > best_sig {
+                                best_candidate = Some((current_parsed_bssid.clone(), sig));
+                            }
+                        } else {
+                            best_candidate = Some((current_parsed_bssid.clone(), sig));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    best_candidate
+}
+
+#[cfg(windows)]
+pub fn steer_to_bssid(ssid: &str, _target_bssid: &str) -> bool {
+    let res = Command::new("netsh")
+        .args(["wlan", "connect", &format!("name={}", ssid), &format!("ssid={}", ssid)])
+        .output();
+    match res {
+        Ok(out) => out.status.success(),
+        Err(_) => false,
+    }
 }
 
 #[cfg(windows)]
@@ -585,5 +820,15 @@ mod tests {
     #[test]
     fn test_is_vpn_active() {
         let _ = is_vpn_active();
+    }
+
+    #[test]
+    fn test_get_current_wifi_signal() {
+        let _ = get_current_wifi_signal();
+    }
+
+    #[test]
+    fn test_scan_and_find_stronger_campus_ap() {
+        let _ = scan_and_find_stronger_campus_ap("PESU-EC-Campus", None, 30);
     }
 }

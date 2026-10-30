@@ -636,7 +636,10 @@ fun LiveTelemetryCard(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = if (telemetry.rssi != null) "${telemetry.rssi} dBm${telemetry.channel?.let { " (Ch $it)" } ?: ""}" else "--",
+                        text = if (telemetry.rssi != null) {
+                            val pct = telemetry.signalPercent?.let { " ($it%)" } ?: ""
+                            "${telemetry.rssi} dBm$pct${telemetry.channel?.let { " [Ch $it]" } ?: ""}"
+                        } else "--",
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold
@@ -663,6 +666,16 @@ fun LiveTelemetryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            if (telemetry.lastRoamEvent != null) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "⚡ ${telemetry.lastRoamEvent}",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
             if (currentAp?.tag != null) {

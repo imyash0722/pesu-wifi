@@ -56,11 +56,13 @@ data class WifiTelemetry(
     val ssid: String? = null,
     val bssid: String? = null,
     val rssi: Int? = null,
+    val signalPercent: Int? = null,
     val frequency: Int? = null,
     val channel: Int? = null,
     val ip: String? = null,
     val gateway: String? = null,
     val isCampus: Boolean = false,
+    val lastRoamEvent: String? = null,
     val lastUpdate: Long = 0L
 )
 
@@ -104,6 +106,11 @@ class WifiKeepaliveService : Service() {
     private var lastCapabilitiesLogTimestamp: Long = 0L
     private var lastCapabilitiesLoggedRssi: Int = -127
     private var lastReauthTriggerTimestamp: Long = 0L
+    private var lastProactiveRoamTimestamp: Long = 0L
+    private var lastProactiveScanTriggerTimestamp: Long = 0L
+    private var lastScanResultsTimestamp: Long = 0L
+    private var pendingProactiveRoamEvaluation: Boolean = false
+    private var lastRoamStatusMessage: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -608,9 +615,13 @@ class WifiKeepaliveService : Service() {
                     if (Math.abs(newRssi - lastRssi) >= 6) {
                         @Suppress("DEPRECATION")
                         val level = WifiManager.calculateSignalLevel(newRssi, 5)
-                        AppLogger.d(TAG, "[Broadcast:RSSI_CHANGED] Signal: $lastRssi dBm -> $newRssi dBm (level $level/5)")
+                        val pct = rssiToPercentage(newRssi)
+                        AppLogger.d(TAG, "[Broadcast:RSSI_CHANGED] Signal: $lastRssi dBm -> $newRssi dBm ($pct%, level $level/5)")
                         lastRssi = newRssi
                         updateTelemetry()
+                    }
+                    if (newRssi > -120) {
+                        checkProactiveRoam(newRssi)
                     }
                 }
                 WifiManager.SCAN_RESULTS_AVAILABLE_ACTION -> {
@@ -653,9 +664,131 @@ class WifiKeepaliveService : Service() {
                     gateway = lastGateway
                 )
             }
+            if (updated) {
+                lastScanResultsTimestamp = SystemClock.elapsedRealtime()
+                if (pendingProactiveRoamEvaluation || (lastRssi > -120 && rssiToPercentage(lastRssi) <= PROACTIVE_ROAM_THRESHOLD_PERCENT)) {
+                    evaluateCandidateApsForRoam(lastRssi)
+                }
+            }
         } catch (e: Exception) {
             AppLogger.w(TAG, "Failed reading scan results: ${e.message}")
         }
+    }
+
+    private fun rssiToPercentage(rssi: Int): Int {
+        return when {
+            rssi <= -100 -> 0
+            rssi >= -50 -> 100
+            else -> 2 * (rssi + 100)
+        }
+    }
+
+    private fun checkProactiveRoam(currentRssi: Int) {
+        if (!wasCampusNetwork && !isCampusNetworkActive()) return
+        if (currentRssi <= -120) return
+
+        val signalPercent = rssiToPercentage(currentRssi)
+        if (signalPercent > PROACTIVE_ROAM_THRESHOLD_PERCENT && currentRssi > PROACTIVE_ROAM_THRESHOLD_DBM) {
+            return
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastProactiveRoamTimestamp < PROACTIVE_ROAM_COOLDOWN_MS) {
+            return
+        }
+
+        AppLogger.d(TAG, "Proactive roam check: Signal dropped to $currentRssi dBm ($signalPercent% <= $PROACTIVE_ROAM_THRESHOLD_PERCENT%). Searching for closer campus routers...")
+
+        if (now - lastScanResultsTimestamp < 15_000L) {
+            evaluateCandidateApsForRoam(currentRssi)
+        } else {
+            if (now - lastProactiveScanTriggerTimestamp >= PROACTIVE_SCAN_COOLDOWN_MS) {
+                lastProactiveScanTriggerTimestamp = now
+                pendingProactiveRoamEvaluation = true
+                val wm = wifiManager
+                try {
+                    @Suppress("DEPRECATION")
+                    val started = wm?.startScan() ?: false
+                    if (started) {
+                        AppLogger.d(TAG, "Proactive roam: active Wi-Fi scan initiated for closer APs")
+                    } else {
+                        evaluateCandidateApsForRoam(currentRssi)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Proactive scan failed: ${e.message}")
+                    evaluateCandidateApsForRoam(currentRssi)
+                }
+            } else {
+                evaluateCandidateApsForRoam(currentRssi)
+            }
+        }
+    }
+
+    private fun evaluateCandidateApsForRoam(currentRssi: Int) {
+        val wm = wifiManager ?: return
+        @Suppress("DEPRECATION")
+        val scanResults = wm.scanResults ?: return
+        val currentConnectedBssid = lastBssid
+        val currentConnectedSsid = lastSsid ?: "PESU-EC-Campus"
+        val signalPercent = rssiToPercentage(currentRssi)
+
+        val candidates = scanResults.filter { ap ->
+            val bssid = ap.BSSID ?: ""
+            val ssid = ap.SSID?.replace("\"", "")?.trim() ?: ""
+            portalRepository.isCampusSsid(ssid) &&
+                !bssid.equals(currentConnectedBssid, ignoreCase = true) &&
+                bssid != "02:00:00:00:00:00" &&
+                ap.level >= PROACTIVE_ROAM_MIN_CANDIDATE_DBM &&
+                ap.level >= (currentRssi + PROACTIVE_ROAM_MIN_DELTA_DBM)
+        }
+
+        if (candidates.isEmpty()) {
+            AppLogger.d(TAG, "Proactive roam: No closer campus AP found with >= +${PROACTIVE_ROAM_MIN_DELTA_DBM} dBm improvement (current: $currentRssi dBm / $signalPercent%)")
+            return
+        }
+
+        val bestAp = candidates.maxByOrNull { ap ->
+            val ssidMatchBonus = if (ap.SSID.equals(currentConnectedSsid, ignoreCase = true)) 5 else 0
+            ap.level + ssidMatchBonus
+        } ?: return
+
+        val candidateSsid = bestAp.SSID.replace("\"", "").trim()
+        val candidateBssid = bestAp.BSSID
+        val candidateRssi = bestAp.level
+        val delta = candidateRssi - currentRssi
+        val candidatePercent = rssiToPercentage(candidateRssi)
+
+        val now = SystemClock.elapsedRealtime()
+        lastProactiveRoamTimestamp = now
+        pendingProactiveRoamEvaluation = false
+        lastRoamStatusMessage = "Steering to $candidateBssid ($candidatePercent%, +${delta}dBm)"
+
+        AppLogger.roam(
+            TAG,
+            "⚡ PROACTIVE ROAM TRIGGERED: Signal on '$currentConnectedBssid' dropped to $currentRssi dBm ($signalPercent%). " +
+            "Switching to closer router '$candidateBssid' ($candidateSsid) at $candidateRssi dBm ($candidatePercent%, +$delta dBm stronger, Ch ${frequencyToChannel(bestAp.frequency)})"
+        )
+
+        WifiSuggestionManager.prioritizeTarget(applicationContext, candidateSsid, candidateBssid)
+
+        try {
+            @Suppress("DEPRECATION")
+            val reassociated = wm.reassociate()
+            AppLogger.d(TAG, "Proactive roam: wifiManager.reassociate() result = $reassociated")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "wifiManager.reassociate() failed: ${e.message}")
+        }
+
+        BssidDatabase.record(
+            context = applicationContext,
+            bssid = candidateBssid,
+            ssid = candidateSsid,
+            frequency = bestAp.frequency,
+            level = candidateRssi,
+            gateway = lastGateway
+        )
+
+        updateTelemetry()
     }
 
     private fun frequencyToChannel(freq: Int): Int {
@@ -669,16 +802,19 @@ class WifiKeepaliveService : Service() {
     }
 
     private fun updateTelemetry() {
+        val pct = if (lastRssi > -120) rssiToPercentage(lastRssi) else null
         _telemetryFlow.value = WifiTelemetry(
             isConnected = activeWifiNetwork != null,
             ssid = lastSsid?.replace("\"", ""),
             bssid = lastBssid,
             rssi = if (lastRssi > -120) lastRssi else null,
+            signalPercent = pct,
             frequency = if (lastFrequency > 0) lastFrequency else null,
             channel = if (lastFrequency > 0) frequencyToChannel(lastFrequency) else null,
             ip = lastIpAddresses.firstOrNull(),
             gateway = lastGateway,
             isCampus = wasCampusNetwork,
+            lastRoamEvent = lastRoamStatusMessage,
             lastUpdate = System.currentTimeMillis()
         )
     }
@@ -859,6 +995,7 @@ class WifiKeepaliveService : Service() {
 
         if (bssidChanged) {
             lastRoamTimestamp = now
+            lastRoamStatusMessage = "Roamed to $currentBssid (${rssiToPercentage(currentRssi)}%)"
             AppLogger.roam(TAG, "AP ROAM DETECTED: Physical router changed! BSSID '$lastBssid' -> '$currentBssid' (SSID: '$currentSsid', RSSI: ${currentRssi}dBm, Ch: ${frequencyToChannel(currentFreq)})")
             lastBssid = currentBssid
             if (!currentSsid.isNullOrBlank()) {
@@ -876,6 +1013,10 @@ class WifiKeepaliveService : Service() {
             lastRssi = currentRssi
             lastFrequency = currentFreq
             updateTelemetry()
+
+            if (currentRssi > -120) {
+                checkProactiveRoam(currentRssi)
+            }
 
             val captivePortalRisingEdge = isCaptivePortal && !lastCaptivePortal
             if (captivePortalRisingEdge && isCampusNetworkActive() && !isAuthBackoffActive && reconnectJob?.isActive != true) {
@@ -1347,6 +1488,13 @@ class WifiKeepaliveService : Service() {
         }
 
         const val REQUEST_HEARTBEAT = 100
+
+        const val PROACTIVE_ROAM_THRESHOLD_PERCENT = 40
+        const val PROACTIVE_ROAM_THRESHOLD_DBM = -75
+        const val PROACTIVE_ROAM_MIN_DELTA_DBM = 12
+        const val PROACTIVE_ROAM_MIN_CANDIDATE_DBM = -68
+        const val PROACTIVE_ROAM_COOLDOWN_MS = 25_000L
+        const val PROACTIVE_SCAN_COOLDOWN_MS = 30_000L
 
         const val ACTION_START = "com.imyash.pesuwifi.action.START"
         const val ACTION_STOP = "com.imyash.pesuwifi.action.STOP"

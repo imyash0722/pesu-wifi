@@ -1,6 +1,7 @@
 package com.imyash.pesuwifi.data
 
 import android.content.Context
+import android.net.MacAddress
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSuggestion
 import android.content.Intent
@@ -49,15 +50,47 @@ object WifiSuggestionManager {
         prioritySsid: String? = null,
         priorityBssid: String? = null
     ): List<WifiNetworkSuggestion> {
+        val result = mutableListOf<WifiNetworkSuggestion>()
+
+        // 1. If a specific closer BSSID router is targeted, create an explicit BSSID-pinned priority suggestion
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !prioritySsid.isNullOrBlank() && !priorityBssid.isNullOrBlank()) {
+            val matchingTarget = CAMPUS_TARGETS.find { it.ssid.equals(prioritySsid, ignoreCase = true) }
+            if (matchingTarget != null) {
+                try {
+                    val builder = WifiNetworkSuggestion.Builder()
+                        .setSsid(matchingTarget.ssid)
+                        .setIsAppInteractionRequired(false)
+                        .setIsUserInteractionRequired(false)
+
+                    if (matchingTarget.passphrase != null) {
+                        builder.setWpa2Passphrase(matchingTarget.passphrase)
+                    }
+
+                    builder.setBssid(MacAddress.fromString(priorityBssid))
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        builder.setPriority(1000)
+                        builder.setIsInitialAutojoinEnabled(true)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        builder.setMacRandomizationSetting(WifiNetworkSuggestion.RANDOMIZATION_PERSISTENT)
+                    }
+                    result.add(builder.build())
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Error building BSSID-pinned suggestion for ${matchingTarget.ssid} / $priorityBssid: ${e.message}")
+                }
+            }
+        }
+
         val sortedTargets = if (!prioritySsid.isNullOrBlank()) {
             CAMPUS_TARGETS.sortedByDescending { it.ssid.equals(prioritySsid, ignoreCase = true) }
         } else {
             CAMPUS_TARGETS
         }
 
-        return sortedTargets.mapNotNull { target ->
+        for (target in sortedTargets) {
             try {
-                val isPriority = !prioritySsid.isNullOrBlank() && target.ssid.equals(prioritySsid, ignoreCase = true)
+                val isPriority = !prioritySsid.isNullOrBlank() && target.ssid.equals(prioritySsid, ignoreCase = true) && priorityBssid.isNullOrBlank()
                 val builder = WifiNetworkSuggestion.Builder()
                     .setSsid(target.ssid)
                     .setIsAppInteractionRequired(false)
@@ -68,18 +101,19 @@ object WifiSuggestionManager {
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    builder.setPriority(if (isPriority) 1000 else 500)
+                    builder.setPriority(if (isPriority) 900 else 500)
                     builder.setIsInitialAutojoinEnabled(true)
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     builder.setMacRandomizationSetting(WifiNetworkSuggestion.RANDOMIZATION_PERSISTENT)
                 }
-                builder.build()
+                result.add(builder.build())
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Error building suggestion for ${target.ssid}: ${e.message}")
-                null
             }
         }
+
+        return result
     }
 
     fun prioritizeTarget(context: Context, ssid: String, bssid: String? = null): Boolean {
@@ -90,6 +124,7 @@ object WifiSuggestionManager {
             if (suggestions.isEmpty()) return false
             try {
                 wm.removeNetworkSuggestions(buildSuggestions())
+                wm.removeNetworkSuggestions(suggestions)
             } catch (_: Exception) {}
             val status = wm.addNetworkSuggestions(suggestions)
             val success = status == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS

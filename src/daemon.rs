@@ -609,6 +609,7 @@ pub fn run_daemon() -> ! {
     });
 
     let mut last_bssid: Option<String> = None;
+    let mut last_proactive_roam: Option<std::time::Instant> = None;
     let mut last_standby_state: Option<String> = None;
     let mut inhibitor = SleepInhibitor::new();
     let mut is_first_run = true;
@@ -707,6 +708,36 @@ pub fn run_daemon() -> ! {
                 }
             }
             last_bssid = Some(bssid.clone());
+        }
+
+        // Rule 2b: Proactive Threshold-Based Router Switching
+        // If connected to campus Wi-Fi and signal drops below 40%, find closer router and steer connection
+        if let Some(signal) = wifi::get_current_wifi_signal() {
+            let cooldown_passed = match last_proactive_roam {
+                Some(inst) => inst.elapsed() >= Duration::from_secs(30),
+                None => true,
+            };
+            if signal < 40 && cooldown_passed {
+                if let Some((stronger_bssid, stronger_signal)) =
+                    wifi::scan_and_find_stronger_campus_ap(&ssid, current_bssid.as_deref(), signal)
+                {
+                    let delta = stronger_signal - signal;
+                    if delta >= 15 {
+                        log(&format!(
+                            "⚡ Proactive Roam Triggered: Weak Wi-Fi signal ({}% < 40%) on AP '{}'. Switching to closer router '{}' ({}%, +{}% stronger)...",
+                            signal,
+                            current_bssid.as_deref().unwrap_or("unknown"),
+                            stronger_bssid,
+                            stronger_signal,
+                            delta
+                        ));
+                        if wifi::steer_to_bssid(&ssid, &stronger_bssid) {
+                            last_proactive_roam = Some(std::time::Instant::now());
+                            just_connected = true;
+                        }
+                    }
+                }
+            }
         }
 
         let interval = get_keep_alive_interval();
