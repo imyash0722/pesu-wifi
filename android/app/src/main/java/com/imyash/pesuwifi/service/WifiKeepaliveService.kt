@@ -68,7 +68,7 @@ class WifiKeepaliveService : Service() {
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
-    private var loopJob: Job? = null
+    private var scheduledCallJob: Job? = null
     private var reconnectJob: Job? = null
     private var autoReconnectWatchdogJob: Job? = null
 
@@ -267,7 +267,12 @@ class WifiKeepaliveService : Service() {
 
         when (action) {
             ACTION_STOP -> {
-                AppLogger.i(TAG, "ACTION_STOP received, stopping service")
+                AppLogger.i(TAG, "ACTION_STOP received, stopping service completely")
+                getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("daemon_enabled", false)
+                    .apply()
+                stopForegroundServiceCompletely()
                 stopSelf()
                 return START_NOT_STICKY
             }
@@ -318,7 +323,7 @@ class WifiKeepaliveService : Service() {
             }
             ACTION_START -> {
                 startInForeground()
-                startKeepaliveLoop()
+                triggerKeepaliveCheck(force = true)
             }
         }
 
@@ -408,7 +413,8 @@ class WifiKeepaliveService : Service() {
                 // Connected to campus Wi-Fi
                 wasCampusNetwork = true
                 acquireLocks()
-                scheduleNextHeartbeat()
+                val sleepInterval = if (!status.isPortalOnline) 10_000L else getNextKeepaliveIntervalMs()
+                scheduleNextCall(sleepInterval)
 
                 if (status.isLoggedIn) {
                     consecutiveFailureCount = 0
@@ -481,7 +487,7 @@ class WifiKeepaliveService : Service() {
                     // Connected to campus, but gateway probe was temporarily unreachable during roaming or VPN
                     wasCampusNetwork = true
                     acquireLocks()
-                    scheduleNextHeartbeat()
+                    scheduleNextCall(10_000L)
                     AppLogger.roam(TAG, "Campus network active (IPs=$lastIpAddresses, SSID=$lastSsid) but gateway probe unreachable. Holding locks and continuing keepalive.")
                 } else {
                     consecutiveFailureCount = 0
@@ -490,19 +496,19 @@ class WifiKeepaliveService : Service() {
                         if (wasCampusNetwork) {
                             // Roaming AP handoff: Wi-Fi dropped momentarily while transitioning between campus APs.
                             // Re-arm watchdog heartbeat so standby does not stall during physical handoff.
-                            scheduleNextHeartbeat()
+                            scheduleNextCall(10_000L)
                             AppLogger.d(TAG, "Wi-Fi momentarily disconnected during campus AP transition. Re-arming watchdog.")
                         } else {
+                            scheduledCallJob?.cancel()
                             releaseLocks() // Release CPU WakeLock and WifiLock so device can sleep
                             cancelHeartbeat() // Cancel hardware wake alarm
                             AppLogger.d(TAG, "Wi-Fi not connected (non-interference mode, locks released)")
                         }
                     } else {
+                        scheduledCallJob?.cancel()
                         releaseLocks()
                         cancelHeartbeat()
                         wasCampusNetwork = false
-                        loopJob?.cancel()
-                        loopJob = null
                         AppLogger.i(TAG, "External Wi-Fi detected ($lastSsid). Keepalive entered dormant mode.")
                     }
                     updateForegroundNotification()
@@ -527,31 +533,18 @@ class WifiKeepaliveService : Service() {
         }
     }
 
-    private fun startKeepaliveLoop() {
-        loopJob?.cancel()
-        loopJob = serviceScope.launch {
-            AppLogger.d(TAG, "Keepalive loop started")
-            while (isActive) {
-                performKeepaliveCheck()
-                val status = portalRepository.statusFlow.value
-                val isCampus = isCampusNetworkActive()
+    private fun triggerKeepaliveCheck(force: Boolean = false, isRoamingEvent: Boolean = false) {
+        serviceScope.launch {
+            performKeepaliveCheck(force = force, isRoamingEvent = isRoamingEvent)
+        }
+    }
 
-                if (!isCampus && status.isWifiConnected) {
-                    AppLogger.i(TAG, "Keepalive loop: Non-campus Wi-Fi ($lastSsid) detected. Entering dormant standby.")
-                    break
-                } else if (!status.isWifiConnected) {
-                    delay(3000L)
-                    val recheck = portalRepository.statusFlow.value
-                    if (!recheck.isWifiConnected) {
-                        AppLogger.i(TAG, "Keepalive loop: Wi-Fi disconnected. Entering standby.")
-                        break
-                    }
-                }
-
-                // If on campus, but gateway probe was temporarily unreachable, retry sooner (10s)
-                val sleepInterval = if (!status.isPortalOnline) 10_000L else getNextKeepaliveIntervalMs()
-                delay(sleepInterval)
-            }
+    private fun scheduleNextCall(intervalMs: Long) {
+        scheduledCallJob?.cancel()
+        scheduleNextHeartbeat()
+        scheduledCallJob = serviceScope.launch {
+            delay(intervalMs)
+            performKeepaliveCheck(force = false)
         }
     }
 
@@ -812,8 +805,7 @@ class WifiKeepaliveService : Service() {
                     }
                 }
                 acquireLocks()
-                scheduleNextHeartbeat()
-                startKeepaliveLoop()
+                triggerKeepaliveCheck(force = true)
             } else {
                 wasCampusNetwork = false
                 AppLogger.i(TAG, "External network confirmed: entering non-interference standby")
@@ -1017,8 +1009,8 @@ class WifiKeepaliveService : Service() {
         portalRepository.clearCampusCache()
         updateTelemetry()
         reconnectJob?.cancel()
-        loopJob?.cancel()
-        loopJob = null
+        scheduledCallJob?.cancel()
+        scheduledCallJob = null
         consecutiveFailureCount = 0
 
         // If we were on campus Wi-Fi, keep locks active so CPU does not suspend during reconnect watchdog!
@@ -1288,25 +1280,55 @@ class WifiKeepaliveService : Service() {
         } catch (_: Exception) {}
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        AppLogger.i(TAG, "WifiKeepaliveService onDestroy")
+    private fun stopForegroundServiceCompletely() {
+        _isServiceRunning.value = false
         if (activeInstance === this) {
             activeInstance = null
         }
-        _isServiceRunning.value = false
         _telemetryFlow.value = WifiTelemetry()
+
+        // 1. Remove foreground notification
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Error removing foreground notification: ${e.message}")
+        }
+
+        // 2. Cancel all alarms and scheduled jobs
+        cancelHeartbeat()
         autoReconnectWatchdogJob?.cancel()
         reconnectJob?.cancel()
-        loopJob?.cancel()
-        cancelHeartbeat()
+        scheduledCallJob?.cancel()
+        scheduledCallJob = null
+
+        // 3. Release wake locks
         releaseLocks()
+
+        // 4. Unregister receivers and callbacks
         unregisterWifiEventReceiver()
         try {
             networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
-        } catch (e: Exception) {
-            // Ignore
-        }
+            networkCallback = null
+        } catch (_: Exception) {}
+
+        try {
+            connectivityManager.bindProcessToNetwork(null)
+        } catch (_: Exception) {}
+
+        portalRepository.clearCampusCache()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        AppLogger.i(TAG, "WifiKeepaliveService onDestroy")
+        stopForegroundServiceCompletely()
         serviceScope.cancel()
     }
 
@@ -1344,6 +1366,12 @@ class WifiKeepaliveService : Service() {
         val telemetryFlow: StateFlow<WifiTelemetry> = _telemetryFlow.asStateFlow()
 
         suspend fun triggerCheckFromAlarm(context: Context) {
+            val autostart = context.getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
+                .getBoolean("daemon_enabled", true)
+            if (!autostart) {
+                AppLogger.d(TAG, "Heartbeat alarm ignored: daemon explicitly stopped by user")
+                return
+            }
             val service = activeInstance
             if (service != null && _isServiceRunning.value) {
                 AppLogger.d(TAG, "Heartbeat alarm handled directly via active service instance")
@@ -1355,6 +1383,10 @@ class WifiKeepaliveService : Service() {
         }
 
         fun start(context: Context) {
+            context.getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("daemon_enabled", true)
+                .apply()
             val intent = Intent(context, WifiKeepaliveService::class.java).apply {
                 action = ACTION_START
             }
@@ -1366,6 +1398,10 @@ class WifiKeepaliveService : Service() {
         }
 
         fun stop(context: Context) {
+            context.getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("daemon_enabled", false)
+                .apply()
             val intent = Intent(context, WifiKeepaliveService::class.java).apply {
                 action = ACTION_STOP
             }

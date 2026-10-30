@@ -5,6 +5,8 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.8 — Dynamic Gateway Bypass, Android Auth Switcher Fix, Event-Driven Watchdog Calls & Clean Daemon Lifecycle](#v378--dynamic-gateway-bypass-android-auth-switcher-fix-event-driven-watchdog-calls--clean-daemon-lifecycle)
+  - [Overview & Major Highlights](#v378-overview--major-highlights)
 - [v3.7.7 — Zero-Disconnect VPN/Tailscale Coexistence, Persistent Listen Ports, Dynamic Route Injection & Netlink Filter Hardening](#v377--zero-disconnect-vpntailscale-coexistence-persistent-listen-ports-dynamic-route-injection--netlink-filter-hardening)
   - [Overview & Major Highlights](#v377-overview--major-highlights)
 - [v3.7.6 — CLI Daemon Lifecycle Hardening, Direct Socket Fallback & Instant Portal Resolution](#v376--cli-daemon-lifecycle-hardening-direct-socket-fallback--instant-portal-resolution)
@@ -35,6 +37,46 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.8 — Dynamic Gateway Bypass, Android Auth Switcher Fix, Event-Driven Watchdog Calls & Clean Daemon Lifecycle
+
+**Release Date:** October 30, 2026  
+**Git Tag:** [`v3.7.8`](https://github.com/imyash/pesuwifi/releases/tag/v3.7.8)  
+**Release Type:** Mobile & Desktop Routing Hardening & Architecture Stability Release
+
+### v3.7.8 Overview & Major Highlights
+
+#### 1. Dynamic Subnet Roaming & Purge of Stale Hardcoded Gateway Routes (Linux Desktop)
+- **Problem:** When previously setting VPN bypass routes via NetworkManager (`nmcli connection modify <ssid> +ipv4.routes "<portal_ip>/32 <gw>"`), static next-hop gateway IPs (e.g., `10.1.0.1`) were permanently written to the NetworkManager connection profile. When moving across campus or roaming between APs with different DHCP subnets (e.g. `10.3.0.0/20` with gateway `10.3.0.1`), the static route forced traffic to the old unreachable gateway `10.1.0.1`, causing total portal unreachability.
+- **Solution:** 
+  - Purged hardcoded static gateway entries from persistent NetworkManager profiles.
+  - Relied entirely on gateway-agnostic policy routing rules (`ipv4.routing-rules: priority 5200 to <portal_ip> table main`), which dynamically resolve via whatever gateway DHCP assigned in table `main`.
+  - Injected runtime routes ephemerally directly into the kernel routing table (`ip route replace <target> via <current_gw> dev <iface>`), eliminating stale on-disk routes.
+
+#### 2. Android Multi-Account Switcher Fix
+- **Problem:** Tapping an account in `AccountsScreen` previously delegated solely to `login(username)`. If Wi-Fi was disconnected (at home, mobile data, hotspot), the login aborted immediately and the active account preference was never updated. When on Wi-Fi, if Cyberoam had a live session bound to that IP under another account, the switch failed without releasing the previous session.
+- **Solution:** 
+  - `PortalViewModel.switchAccount()` now updates `accountRepository.setActiveUser()` immediately in persistent preferences and updates UI state regardless of Wi-Fi state.
+  - When Wi-Fi is connected, the previous session is proactively logged out (`logout(previousUser, isExplicit = false)`) before initiating login as the newly selected user.
+
+#### 3. Single-Shot Scheduled Calls (Eliminated Coroutine Delay Loops on Android)
+- **Problem:** `WifiKeepaliveService` used an infinite `while (isActive) { performKeepaliveCheck(); delay(...) }` coroutine loop. On Android 12+ (API 31+), Doze mode and power optimizations frequently pause or freeze coroutine delays unpredictably.
+- **Solution:** 
+  - Completely removed the `while (isActive)` loop from `startKeepaliveLoop()`.
+  - Replaced it with discrete, event-driven single-shot calls (`performKeepaliveCheck()`), scheduling the next exact wakeup via hardware `AlarmManager.setExactAndAllowWhileIdle()` and `KeepaliveAlarmReceiver`.
+  - Every keepalive check call invokes `portalRepository.refreshStatus()`, automatically keeping the app status fresh across the app at the keepalive interval.
+
+#### 4. Warm & Cold Startup App Status Refresh
+- **Problem:** Backgrounding the app and returning to it left stale status information until the user manually clicked the refresh button.
+- **Solution:** 
+  - Hooked `MainActivity.onResume()` to invoke `viewModel.refresh()`. Every time the app is opened or resumed from the background, the UI immediately updates with fresh network, portal, and authentication status.
+
+#### 5. Notification "Stop" Button Clean Lifecycle & Resurrect Prevention
+- **Problem:** Tapping "Stop" in the notification only called `stopSelf()` without `stopForeground(STOP_FOREGROUND_REMOVE)`, leaving the notification stuck and failing to cancel scheduled alarms or release CPU/Wi-Fi wake locks, which caused the service to resurrect.
+- **Solution:** 
+  - `ACTION_STOP` now sets `daemon_enabled = false` in settings, immediately removes the foreground notification (`stopForeground(STOP_FOREGROUND_REMOVE)` and cancels notification ID), cancels all `AlarmManager` heartbeats, releases CPU and Wi-Fi wake locks, unregisters network callbacks, and stops the service completely.
 
 ---
 

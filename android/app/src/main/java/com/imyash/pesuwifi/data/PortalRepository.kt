@@ -525,10 +525,13 @@ class PortalRepository(
                 }
             val currentStatus = _statusFlow.value
             val currentUser = currentStatus.activeUsername
-            if (currentStatus.isLoggedIn && !currentUser.isNullOrBlank() && currentUser != username) {
-                AppLogger.i("PortalRepository", "Logging out current user '$currentUser' before switching to '$username'")
-                api.logout(currentUser)
-                kotlinx.coroutines.delay(300L)
+            val previousUser = if (!currentUser.isNullOrBlank()) currentUser else accountRepository.getActiveUser()
+            if (!previousUser.isNullOrBlank() && previousUser != username) {
+                AppLogger.i("PortalRepository", "Logging out previous user '$previousUser' before switching to '$username'")
+                try {
+                    api.logout(previousUser)
+                    kotlinx.coroutines.delay(350L)
+                } catch (_: Exception) {}
             }
 
             AppLogger.i("PortalRepository", "Initiating login for $username")
@@ -586,8 +589,10 @@ class PortalRepository(
             result
     }
 
-    suspend fun logout(): Result<String> = withContext(Dispatchers.IO) {
-        isExplicitLogout = true
+    suspend fun logout(targetUsername: String? = null, isExplicit: Boolean = true): Result<String> = withContext(Dispatchers.IO) {
+        if (isExplicit) {
+            isExplicitLogout = true
+        }
         val wifiNet = getWifiNetwork()
         if (wifiNet == null) {
             AppLogger.d("PortalRepository", "Logout: Wi-Fi is not connected, clearing session locally")
@@ -603,6 +608,7 @@ class PortalRepository(
         api.portalBaseUrl = resolvePortalBase(wifiNet)
         api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
+        if (isExplicit) {
             // Immediately update statusFlow so UI switches to disconnected state without waiting
             val current = _statusFlow.value
             _statusFlow.value = current.copy(
@@ -615,12 +621,13 @@ class PortalRepository(
                     connectivityManager?.reportNetworkConnectivity(net, false)
                 } catch (_: Exception) {}
             }
+        }
 
-            val username = accountRepository.getActiveUser() ?: "user"
-            AppLogger.i("PortalRepository", "Initiating logout for $username")
-            val result = api.logout(username)
-            refreshStatus()
-            result
+        val username = targetUsername ?: accountRepository.getActiveUser() ?: "user"
+        AppLogger.i("PortalRepository", "Initiating logout for $username")
+        val result = api.logout(username)
+        refreshStatus()
+        result
     }
 
     companion object {

@@ -422,18 +422,28 @@ pub fn ensure_vpn_bypass_routes(ssid: &str) {
         .unwrap_or_default();
 
     let mut routes_modified = false;
-    for target in portal_ips {
-        if !existing_routes.contains(target) {
-            let route_entry = format!("{} {}", target, gw);
+
+    // Purge any stale static gateway routes from the persistent NetworkManager profile.
+    // Hardcoded gateway IPs (e.g. 10.1.0.1) break when roaming across campus subnets (e.g. to 10.3.0.0/20).
+    if !existing_routes.trim().is_empty() {
+        let mut has_portal_route = false;
+        for target in portal_ips {
+            let ip_target = target.trim_end_matches("/32");
+            if existing_routes.contains(ip_target) {
+                has_portal_route = true;
+                break;
+            }
+        }
+        if has_portal_route {
             let res = Command::new("nmcli")
-                .args(["connection", "modify", ssid, "+ipv4.routes", &route_entry])
+                .args(["connection", "modify", ssid, "ipv4.routes", ""])
                 .output();
             if let Ok(out) = res {
                 if out.status.success() {
                     routes_modified = true;
                     log(&format!(
-                        "⚡ Configured VPN bypass route for {} via gateway {} on '{}'",
-                        target, gw, ssid
+                        "⚡ Purged stale static gateway routes from connection profile '{}' (prevents subnet roaming lockouts)",
+                        ssid
                     ));
                 }
             }

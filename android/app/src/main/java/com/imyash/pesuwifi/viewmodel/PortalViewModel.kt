@@ -204,26 +204,49 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
 
     fun switchAccount(username: String) {
         val now = SystemClock.elapsedRealtime()
-        if (_isLoading.value || (now - lastLoginAttemptTime) < 1500L) {
+        if (_isLoading.value || (now - lastLoginAttemptTime) < 1000L) {
             return
         }
         lastLoginAttemptTime = now
+        val previousUser = accountRepository.getActiveUser()
+
+        // 1. Immediately switch the active account in local storage & UI state
+        accountRepository.setActiveUser(username)
+        refresh()
+
+        val wifiNet = portalRepository.getWifiNetwork()
+        if (wifiNet == null) {
+            _userMessage.value = "Switched active account to '$username' (will connect when on campus Wi-Fi)"
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             _userMessage.value = "Switching to '$username'..."
             try {
+                if (!previousUser.isNullOrBlank() && previousUser != username) {
+                    try {
+                        portalRepository.logout(previousUser, isExplicit = false)
+                        kotlinx.coroutines.delay(350L)
+                    } catch (_: Exception) {}
+                }
                 val result = portalRepository.login(username)
                 if (result.isSuccess) {
                     _userMessage.value = "Signed in as $username"
                 } else {
                     val err = result.exceptionOrNull()?.message ?: "Login failed"
-                    _errorMessage.value = "Login failed for '$username': $err"
+                    _errorMessage.value = "Active account set to '$username', but login failed: $err"
                 }
             } finally {
                 _isLoading.value = false
+                refresh()
             }
         }
+    }
+
+    fun selectActiveUser(username: String) {
+        switchAccount(username)
     }
 
     fun logout() {
@@ -265,12 +288,6 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteAccount(username: String) {
         accountRepository.deleteAccount(username)
         _userMessage.value = "Account '$username' deleted"
-        refresh()
-    }
-
-    fun selectActiveUser(username: String) {
-        accountRepository.setActiveUser(username)
-        _userMessage.value = "Active user set to '$username'"
         refresh()
     }
 

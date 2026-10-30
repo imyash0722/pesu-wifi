@@ -176,11 +176,13 @@ class WifiWakeupReceiver : BroadcastReceiver() {
                     }
                 }
 
-                // Ensure continuous 60-second keepalive foreground service is running
-                val autostart = appContext.getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
-                    .getBoolean("autostart_on_boot", true)
-                if (autostart) {
+                // Ensure continuous keepalive foreground service is running if enabled
+                val daemonEnabled = appContext.getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
+                    .getBoolean("daemon_enabled", true)
+                if (daemonEnabled) {
                     WifiKeepaliveService.start(appContext)
+                } else {
+                    AppLogger.d(TAG, "WifiWakeupReceiver: daemon explicitly stopped by user, skipping start.")
                 }
             } else {
                 AppLogger.i(TAG, "External Wi-Fi network detected ('$currentSsid'). Entering non-interference standby.")
