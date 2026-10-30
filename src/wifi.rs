@@ -1,8 +1,6 @@
 use crate::config;
 use crate::ui::log;
 use std::process::Command;
-use std::thread::sleep;
-use std::time::Duration;
 
 pub fn get_default_wifi_con() -> String {
     std::env::var("PESU_WIFI_CON").unwrap_or_else(|_| "PESU-EC-Campus".to_string())
@@ -257,6 +255,7 @@ pub fn get_active_wifi_ssid() -> String {
 }
 
 #[cfg(unix)]
+#[allow(dead_code)]
 pub fn is_vpn_active() -> bool {
     if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
         for entry in entries.flatten() {
@@ -282,6 +281,7 @@ pub fn is_vpn_active() -> bool {
 }
 
 #[cfg(windows)]
+#[allow(dead_code)]
 pub fn is_vpn_active() -> bool {
     let output = Command::new("powershell")
         .args([
@@ -301,7 +301,7 @@ pub fn is_vpn_active() -> bool {
 }
 
 #[cfg(unix)]
-pub fn heal_network(tier: u8) {
+pub fn heal_network(_tier: u8) {
     let wifi_con = get_current_wifi_ssid().unwrap_or_else(get_active_wifi_ssid);
     if !is_campus_ssid(&wifi_con) {
         log(&format!(
@@ -311,61 +311,18 @@ pub fn heal_network(tier: u8) {
         return;
     }
 
-    if is_vpn_active() {
-        log("[Self-Healing] Active VPN/Tailscale interface detected. Suppressing physical Wi-Fi disconnect to protect active tunnels & self-hosted services.");
-        ensure_vpn_bypass_routes(&wifi_con);
-        if let Some(iface) = crate::portal::get_wifi_interface_name() {
-            let _ = Command::new("nmcli").args(["device", "reapply", &iface]).output();
-        }
-        return;
-    }
-
-    match tier {
-        1 | 2 => {
-            log(&format!("[Self-Healing] Re-associating with '{}'...", wifi_con));
-            let _ = Command::new("nmcli")
-                .args(["connection", "up", &wifi_con])
-                .output();
-        }
-        3 => {
-            log("[Self-Healing L3] Re-engaging Wi-Fi device interface...");
-            let is_root = Command::new("id").arg("-u").output().map(|o| String::from_utf8_lossy(&o.stdout).trim() == "0").unwrap_or(false);
-
-            if is_root {
-                let _ = Command::new("systemctl")
-                    .args(["restart", "NetworkManager"])
-                    .output();
-                sleep(Duration::from_secs(6));
-            } else if let Ok(out) = Command::new("nmcli")
-                .args(["-t", "-f", "DEVICE,TYPE", "dev"])
-                .output()
-            {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                for line in stdout.lines() {
-                    if line.contains(":wifi") {
-                        if let Some(dev_name) = line.split(':').next() {
-                            let _ = Command::new("nmcli")
-                                .args(["device", "disconnect", dev_name])
-                                .output();
-                            sleep(Duration::from_secs(2));
-                            let _ = Command::new("nmcli")
-                                .args(["device", "connect", dev_name])
-                                .output();
-                            break;
-                        }
-                    }
-                }
-            }
-            let _ = Command::new("nmcli")
-                .args(["connection", "up", &wifi_con])
-                .output();
-        }
-        _ => {}
+    log(&format!(
+        "[Self-Healing] Refreshing persistent routing rules & host routes on '{}' (zero-disconnect, no port switching)...",
+        wifi_con
+    ));
+    ensure_vpn_bypass_routes(&wifi_con);
+    if let Some(iface) = crate::portal::get_wifi_interface_name() {
+        let _ = Command::new("nmcli").args(["device", "reapply", &iface]).output();
     }
 }
 
 #[cfg(windows)]
-pub fn heal_network(tier: u8) {
+pub fn heal_network(_tier: u8) {
     let wifi_con = get_current_wifi_ssid().unwrap_or_else(get_active_wifi_ssid);
     if !is_campus_ssid(&wifi_con) {
         log(&format!(
@@ -375,43 +332,11 @@ pub fn heal_network(tier: u8) {
         return;
     }
 
-    if is_vpn_active() {
-        log("[Self-Healing] Active VPN/Tailscale interface detected. Suppressing physical Wi-Fi disconnect to protect active tunnels & self-hosted services.");
-        ensure_vpn_bypass_routes(&wifi_con);
-        return;
-    }
-
-    match tier {
-        1 => {
-            log(&format!("[Self-Healing L1] Reconnecting to '{}'...", wifi_con));
-            let _ = Command::new("netsh")
-                .args(["wlan", "connect", &format!("name={}", wifi_con)])
-                .output();
-        }
-        2 => {
-            log("[Self-Healing L2] Cycling Wi-Fi connection...");
-            let _ = Command::new("netsh").args(["wlan", "disconnect"]).output();
-            sleep(Duration::from_secs(2));
-            let _ = Command::new("netsh")
-                .args(["wlan", "connect", &format!("name={}", wifi_con)])
-                .output();
-        }
-        3 => {
-            log("[Self-Healing L3] Re-engaging Wi-Fi network interface...");
-            let _ = Command::new("netsh")
-                .args(["interface", "set", "interface", "Wi-Fi", "disable"])
-                .output();
-            sleep(Duration::from_secs(2));
-            let _ = Command::new("netsh")
-                .args(["interface", "set", "interface", "Wi-Fi", "enable"])
-                .output();
-            sleep(Duration::from_secs(4));
-            let _ = Command::new("netsh")
-                .args(["wlan", "connect", &format!("name={}", wifi_con)])
-                .output();
-        }
-        _ => {}
-    }
+    log(&format!(
+        "[Self-Healing] Refreshing persistent routing rules & host routes on '{}' (zero-disconnect, no port switching)...",
+        wifi_con
+    ));
+    ensure_vpn_bypass_routes(&wifi_con);
 }
 
 #[cfg(unix)]
