@@ -1295,8 +1295,8 @@ class WifiKeepaliveService : Service() {
                 @Suppress("DEPRECATION")
                 stopForeground(true)
             }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            nm?.cancel(NOTIFICATION_ID)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager
+            nm?.cancel(PesuWifiApp.NOTIFICATION_ID)
         } catch (e: Exception) {
             AppLogger.w(TAG, "Error removing foreground notification: ${e.message}")
         }

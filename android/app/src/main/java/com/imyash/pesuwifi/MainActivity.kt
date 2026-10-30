@@ -59,13 +59,6 @@ class MainActivity : ComponentActivity() {
         promptRuntimePermissions()
         viewModel.checkForUpdates(force = false)
         viewModel.refresh()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Refresh app status every time the app is opened/resumed (warm & cold startup)
-        viewModel.refresh()
-    }
 
         setContent {
             PesuWifiTheme {
@@ -129,6 +122,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshPermissions()
+        // Refresh app status every time the app is opened/resumed (warm & cold startup)
+        viewModel.refresh()
     }
 
     fun requestNotificationPermission() {
