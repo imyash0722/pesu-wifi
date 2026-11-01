@@ -32,8 +32,12 @@ class ResilientSocketFactory(
         @Volatile
         var isPrimaryFactoryFailing: Boolean = false
 
+        @Volatile
+        var lastFailureTimestamp: Long = 0L
+
         fun resetFailureState() {
             isPrimaryFactoryFailing = false
+            lastFailureTimestamp = 0L
         }
 
         fun isPermOrBindingFailure(t: Throwable): Boolean {
@@ -114,11 +118,16 @@ class ResilientSocketFactory(
         private var activeSocket: Socket = initializeSocket()
 
         private fun initializeSocket(): Socket {
-            if (primaryFactory != null && !isPrimaryFactoryFailing) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            val shouldRetryPrimary = !isPrimaryFactoryFailing || (now - lastFailureTimestamp >= 10_000L)
+            if (primaryFactory != null && shouldRetryPrimary) {
                 try {
                     currentTier = 1
-                    return primaryFactory.createSocket()
+                    val s = primaryFactory.createSocket()
+                    isPrimaryFactoryFailing = false
+                    return s
                 } catch (t: Throwable) {
+                    lastFailureTimestamp = now
                     if (isPermOrBindingFailure(t)) {
                         isPrimaryFactoryFailing = true
                         AppLogger.d(TAG, "Primary Wi-Fi socket creation failed with ${t.message}; caching primary failure and falling back to Tier 2/3")

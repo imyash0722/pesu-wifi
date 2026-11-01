@@ -450,11 +450,17 @@ object PortalApi {
         } catch (e: Exception) {
             val latency = System.currentTimeMillis() - start
             AppLogger.e(TAG, "Login EXCEPTION for $username: ${e.message} (latency=${latency}ms)", e)
+            val msgStr = e.message ?: ""
+            val isVpnConflict = ResilientSocketFactory.isPrimaryFactoryFailing ||
+                msgStr.contains("EPERM", ignoreCase = true) ||
+                msgStr.contains("100.", ignoreCase = true) ||
+                msgStr.contains("Operation not permitted", ignoreCase = true)
+
             val friendlyMsg = when {
-                e.message?.contains("EPERM", ignoreCase = true) == true ->
-                    "Portal unreachable: VPN or system policy blocked direct socket."
-                e.message?.contains("timed out", ignoreCase = true) == true ->
-                    "Portal unreachable: Gateway timed out after ${latency}ms. Check if you are on PESU Wi-Fi."
+                isVpnConflict ->
+                    "Portal unreachable: Active VPN (Tailscale/WireGuard) blocked local portal access. In Tailscale -> Settings -> App Split Tunnel, exclude 'PESU WiFi'."
+                msgStr.contains("timed out", ignoreCase = true) ->
+                    "Portal unreachable: Gateway timed out after ${latency}ms. If using Tailscale/VPN, add PESU WiFi to 'App Split Tunnel' in VPN settings."
                 else -> "Portal unreachable (${e.localizedMessage ?: "network error"})"
             }
             Result.failure(Exception(friendlyMsg, e))

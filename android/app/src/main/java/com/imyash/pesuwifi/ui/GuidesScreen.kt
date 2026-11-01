@@ -240,16 +240,16 @@ fun GuidesScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     GuideBullet(
+                        title = "Tailscale & WireGuard (Self-Hosters)",
+                        desc = "Tailscale creates a system VPN tunnel that captures private subnets (192.168.254.1) by default. For seamless 24/7 self-hosting without ever turning Tailscale off:\n• In Tailscale → Settings → App Split Tunnel: check 'PESU WiFi'.\n• If using an Exit Node: enable 'Allow LAN access'.\nThis lets PESU WiFi log in directly over Wi-Fi while all your self-hosted connections remain fully active inside Tailscale."
+                    )
+                    GuideBullet(
                         title = "How VPN Bypass Works",
-                        desc = "When a VPN is active, the Linux kernel restricts physical interface binding with 'EPERM'. Our ResilientSocketFactory automatically catches EPERM and uses a local fallback socket bound to your physical Wi-Fi IP."
+                        desc = "When a VPN is active, Android kernel security restricts raw physical interface binding with 'EPERM'. Our ResilientSocketFactory automatically catches EPERM, falls back to physical Wi-Fi IP binding, and re-probes gateway availability."
                     )
                     GuideBullet(
-                        title = "Zero Configuration Required",
-                        desc = "You do NOT need to configure split tunnels, CIDR routing subnets, or proxy settings. Authentication packets reach the campus router while all your internet traffic remains encrypted inside your VPN tunnel."
-                    )
-                    GuideBullet(
-                        title = "Strict Killswitches",
-                        desc = "If your VPN has 'Block connections without VPN' enabled, simply ensure 'Allow Local Network Access' or 'Allow LAN' is checked in your VPN app."
+                        title = "ProtonVPN, Cloudflare WARP & AdGuard",
+                        desc = "These VPNs permit captive portal bypass by default. If using strict killswitch or 'Block connections without VPN', ensure 'Allow LAN traffic' or 'Bypass local networks' is checked in your VPN settings."
                     )
                 }
             }

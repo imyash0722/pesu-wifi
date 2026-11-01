@@ -76,6 +76,7 @@ import com.imyash.pesuwifi.ui.components.AccountDialog
 import com.imyash.pesuwifi.ui.components.FirstLaunchPermissionsDialog
 import com.imyash.pesuwifi.ui.components.PermissionsCard
 import com.imyash.pesuwifi.ui.components.PermissionsRequiredDialog
+import com.imyash.pesuwifi.ui.components.VpnCompatibilityDialog
 import com.imyash.pesuwifi.ui.theme.StatusAmber
 import com.imyash.pesuwifi.ui.theme.StatusGreen
 import com.imyash.pesuwifi.ui.theme.StatusRed
@@ -103,6 +104,7 @@ fun HomeScreen(
     val initialPermissions = remember { PermissionManager.getPermissionState(context) }
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var showPermissionsDialog by remember { mutableStateOf(false) }
+    var showVpnDialog by remember { mutableStateOf(false) }
     var showFirstLaunchDialog by remember {
         mutableStateOf(
             !PermissionManager.hasSeenFirstLaunchPrompt(context) &&
@@ -393,6 +395,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50.dp))
                             .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f))
+                            .clickable { showVpnDialog = true }
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -404,7 +407,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "VPN Active",
+                            text = "VPN Active ℹ️",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -612,6 +615,11 @@ fun HomeScreen(
                     PermissionManager.setSeenFirstLaunchPrompt(context, true)
                     showFirstLaunchDialog = false
                 }
+            )
+        }
+        if (showVpnDialog) {
+            VpnCompatibilityDialog(
+                onDismiss = { showVpnDialog = false }
             )
         }
     }

@@ -382,6 +382,11 @@ class PortalRepository(
                 }
 
                 // Truly offline, captive portal, or explicitly logged out
+                val statusMsg = when {
+                    isExplicitLogout -> "PESU Wi-Fi connected (Logged out)"
+                    vpnActive -> "PESU Wi-Fi: Gateway blocked by VPN (add to Tailscale Split Tunnel)"
+                    else -> "PESU Wi-Fi: Gateway probe unreachable (roaming or offline)"
+                }
                 val status = PortalStatus(
                     isWifiConnected = true,
                     isPesuWifi = true, // Preserve campus classification so keepalive loop does not terminate
@@ -390,7 +395,7 @@ class PortalRepository(
                     activeUsername = activeUser,
                     latencyMs = latency,
                     lastCheckedTimestamp = System.currentTimeMillis(),
-                    statusMessage = if (isExplicitLogout) "PESU Wi-Fi connected (Logged out)" else "PESU Wi-Fi: Gateway probe unreachable (roaming or VPN active)",
+                    statusMessage = statusMsg,
                     isVpnActive = vpnActive
                 )
                 _statusFlow.value = status
@@ -511,6 +516,7 @@ class PortalRepository(
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
         api.portalBaseUrl = resolvePortalBase(wifiNet)
+        ResilientSocketFactory.resetFailureState()
         api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
             val username = targetUsername ?: accountRepository.getActiveUser()
@@ -606,6 +612,7 @@ class PortalRepository(
             connectivityManager?.bindProcessToNetwork(wifiNet)
         } catch (_: Exception) {}
         api.portalBaseUrl = resolvePortalBase(wifiNet)
+        ResilientSocketFactory.resetFailureState()
         api.setWifiSocketFactory(wifiNet.socketFactory, getWifiLocalAddress(wifiNet))
 
         if (isExplicit) {
