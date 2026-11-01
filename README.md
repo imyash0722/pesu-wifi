@@ -28,7 +28,7 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 ## Key Features
 
 - **Full VPN Compatibility (Zero User Fiddling):**
-  - **Android:** Custom `ResilientSocketFactory` and `bindProcessToNetwork` catch kernel `EPERM` errors during socket `connect()` and transparently routes portal traffic via direct physical interface binding without requiring manual split-tunneling in Tailscale, WireGuard, Cloudflare WARP, OpenVPN, or AdGuard.
+  - **Android:** Custom `ResilientSocketFactory` and `bindProcessToNetwork` handle active VPN tunnels with multi-tier socket fallbacks. Built-in interactive VPN Compatibility Guide provides 1-tap app detection and split-tunneling setup for Tailscale, Proton VPN, WireGuard, Cloudflare WARP, Mullvad, NordVPN, Surfshark, and AdGuard.
   - **Windows & Linux Desktop:** Automatically provisions `/32` host routes for campus gateway endpoints (`192.168.254.1/32`, `172.16.1.1/32`, `192.168.1.1/32`, `10.14.142.1/32`) bound strictly to the physical Wi-Fi interface. Prevents VPN default routes (`0.0.0.0/0`) from hijacking or dropping portal login and keepalive packets.
   - **iOS:** Complete companion guide explaining VPN connection order and Shortcuts automated sign-in.
 - **In-App Self-Updater (Android):**

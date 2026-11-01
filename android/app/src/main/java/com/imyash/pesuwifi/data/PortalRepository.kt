@@ -384,7 +384,7 @@ class PortalRepository(
                 // Truly offline, captive portal, or explicitly logged out
                 val statusMsg = when {
                     isExplicitLogout -> "PESU Wi-Fi connected (Logged out)"
-                    vpnActive -> "PESU Wi-Fi: Gateway blocked by VPN (add to Tailscale Split Tunnel)"
+                    vpnActive -> "PESU Wi-Fi: Gateway blocked by VPN (add to VPN Split Tunnel)"
                     else -> "PESU Wi-Fi: Gateway probe unreachable (roaming or offline)"
                 }
                 val status = PortalStatus(

@@ -458,9 +458,9 @@ object PortalApi {
 
             val friendlyMsg = when {
                 isVpnConflict ->
-                    "Portal unreachable: Active VPN (Tailscale/WireGuard) blocked local portal access. In Tailscale -> Settings -> App Split Tunnel, exclude 'PESU WiFi'."
+                    "Portal unreachable: Active VPN blocked local portal access. In your VPN app (Tailscale, Proton, WireGuard, WARP, etc.), add 'PESU WiFi' to Split Tunneling."
                 msgStr.contains("timed out", ignoreCase = true) ->
-                    "Portal unreachable: Gateway timed out after ${latency}ms. If using Tailscale/VPN, add PESU WiFi to 'App Split Tunnel' in VPN settings."
+                    "Portal unreachable: Gateway timed out after ${latency}ms. If using a VPN, exclude 'PESU WiFi' in your VPN's Split Tunneling / Bypasser settings."
                 else -> "Portal unreachable (${e.localizedMessage ?: "network error"})"
             }
             Result.failure(Exception(friendlyMsg, e))

@@ -56,7 +56,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.imyash.pesuwifi.BuildConfig
+import com.imyash.pesuwifi.ui.components.VpnCompatibilityDialog
 import com.imyash.pesuwifi.ui.theme.StatusGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +89,7 @@ fun GuidesScreen(
             "ios" to false
         )
     }
+    var showVpnDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -230,27 +234,57 @@ fun GuidesScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Guide Section 3: Full VPN Compatibility ──
+            // ── Guide Section 3: Full VPN Compatibility & Split Tunneling ──
             GuideCard(
-                title = "3. Full VPN Compatibility (Zero Fiddling)",
-                subtitle = "Tailscale, WireGuard, Cloudflare WARP & AdGuard",
+                title = "3. Full VPN Compatibility & Split Tunneling",
+                subtitle = "Tailscale, Proton, WireGuard, WARP, Mullvad & More",
                 icon = Icons.Default.VpnKey,
                 isExpanded = expandedStates["vpn"] ?: false,
                 onToggle = { expandedStates["vpn"] = !(expandedStates["vpn"] ?: false) }
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     GuideBullet(
-                        title = "Tailscale & WireGuard (Self-Hosters)",
-                        desc = "Tailscale creates a system VPN tunnel that captures private subnets (192.168.254.1) by default. For seamless 24/7 self-hosting without ever turning Tailscale off:\n• In Tailscale → Settings → App Split Tunnel: check 'PESU WiFi'.\n• If using an Exit Node: enable 'Allow LAN access'.\nThis lets PESU WiFi log in directly over Wi-Fi while all your self-hosted connections remain fully active inside Tailscale."
+                        title = "Universal 3-Step Rule (Any VPN App)",
+                        desc = "1. Open your VPN app and go to Settings or Features.\n2. Look for 'Split Tunneling', 'Bypasser', or 'Excluded Apps'.\n3. Set mode to 'Exclude / Bypass' and check 'PESU WiFi'.\n• Strict Killswitch: Ensure 'Allow LAN / Local Network traffic' is toggled ON so campus portal probes reach 192.168.254.1."
                     )
                     GuideBullet(
-                        title = "How VPN Bypass Works",
-                        desc = "When a VPN is active, Android kernel security restricts raw physical interface binding with 'EPERM'. Our ResilientSocketFactory automatically catches EPERM, falls back to physical Wi-Fi IP binding, and re-probes gateway availability."
+                        title = "Tailscale (Self-Hosters & Exit Nodes)",
+                        desc = "Tailscale captures private subnets by default. For seamless 24/7 self-hosting without ever turning Tailscale off:\n• In Tailscale → Settings → App Split Tunnel: check 'PESU WiFi'.\n• If using an Exit Node: enable 'Allow LAN access'.\nYour self-hosted traffic remains 100% inside Tailscale while portal authentication connects directly over Wi-Fi."
                     )
                     GuideBullet(
-                        title = "ProtonVPN, Cloudflare WARP & AdGuard",
-                        desc = "These VPNs permit captive portal bypass by default. If using strict killswitch or 'Block connections without VPN', ensure 'Allow LAN traffic' or 'Bypass local networks' is checked in your VPN settings."
+                        title = "Proton VPN, WireGuard & Cloudflare WARP",
+                        desc = "• Proton VPN: Settings → Features → Split Tunneling (ON) → Exclude 'PESU WiFi'. Enable Settings → Advanced → 'Allow LAN connections'.\n• WireGuard: Edit Tunnel → Excluded Applications → Check 'PESU WiFi' → Save.\n• Cloudflare 1.1.1.1 (WARP): Menu → Advanced → Connection options → Exclude apps → Add 'PESU WiFi'."
                     )
+                    GuideBullet(
+                        title = "Mullvad, NordVPN, Surfshark & AdGuard",
+                        desc = "• Mullvad: Settings → Split tunneling → Exclude 'PESU WiFi'. Enable 'Local network sharing'.\n• NordVPN: Profile → Settings → Split tunneling (ON) → Disallow for 'PESU WiFi'. Enable 'Local network discovery'.\n• Surfshark: Settings → Features → Bypasser → Bypass VPN → Add 'PESU WiFi'.\n• AdGuard: App Management → 'PESU WiFi' → Turn OFF 'Route traffic through AdGuard'."
+                    )
+                    GuideBullet(
+                        title = "Desktop (Linux & Windows) - Zero Configuration",
+                        desc = "On desktop, PESU WiFi automatically binds /32 host routes for campus gateways (192.168.254.1/32, 172.16.1.1/32) directly to your physical Wi-Fi interface. No manual split tunneling needed on PC."
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = { showVpnDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Interactive VPN Guide & Detected Apps",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -366,6 +400,12 @@ fun GuidesScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showVpnDialog) {
+            VpnCompatibilityDialog(
+                onDismiss = { showVpnDialog = false }
+            )
         }
     }
 }
