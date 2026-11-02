@@ -31,3 +31,6 @@ android/.kotlin/
 
 # Website artifacts
 website/node_modules/
+
+# Graphify
+graphify-out/

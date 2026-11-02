@@ -5,6 +5,7 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.13 — Direct Web Portal Button on Android Home Screen](#v3713--direct-web-portal-button-on-android-home-screen)
 - [v3.7.12 — Official iOS / iPhone Release Bundle, Apple Shortcuts Package & Multi-VPN Split Tunneling](#v3712--official-ios--iphone-release-bundle-apple-shortcuts-package--multi-vpn-split-tunneling)
 - [v3.7.8 — Dynamic Gateway Bypass, Android Auth Switcher Fix, Event-Driven Watchdog Calls & Clean Daemon Lifecycle](#v378--dynamic-gateway-bypass-android-auth-switcher-fix-event-driven-watchdog-calls--clean-daemon-lifecycle)
   - [Overview & Major Highlights](#v378-overview--major-highlights)
@@ -38,6 +39,22 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.13 — Direct Web Portal Button on Android Home Screen
+
+**Release Date:** November 2, 2026  
+**Git Tag:** [`v3.7.13`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.13)  
+**Release Type:** Mobile Feature & UI Usability Release (Android & Multi-Platform)
+
+### v3.7.13 Overview & Major Highlights
+
+#### 1. Direct "Open Portal" Floating Pill Button (Android Home)
+- **Bottom-Left Quick Access:** Added an ergonomic, floating Material 3 pill button pinned to the bottom-left of the Android Home Screen (`Alignment.BottomStart`).
+- **Dynamic Portal Link Resolution:** Automatically opens the captive portal web login interface in the user's default browser using `PortalApi.probeUrl`, dynamically selecting the active gateway base (e.g. `http://192.168.254.1:8090/httpclient.html` on campus or `http://172.16.1.1:8090/httpclient.html` in Amaatra hostel).
+- **Graceful Error Handling:** Wrapped intent execution in a coroutine-backed snackbar handler to report any missing browser activity or system intent dispatch failures.
+- **Scroll Margin Clearance:** Added bottom clearance spacer inside the scrollable column to ensure all diagnostics, account controls, and version tags remain fully visible above the button.
 
 ---
 
