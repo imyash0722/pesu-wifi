@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Offline Apple Shortcuts Companion & 1-Tap Auto-Login Generator for iOS (iPhone & iPad) on PES University and Amaatra Hostel networks.">
+  <meta name="theme-color" content="#090c0f">
+  <title>PESU WiFi — Apple Shortcuts Companion (iOS &amp; iPadOS)</title>
+  <style>
+    :root {
+      --bg: #090c0f;
+      --surface: #10151c;
+      --surface-border: #1e293b;
+      --brand-title: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --accent-tint: rgba(16, 185, 129, 0.12);
+      --card-bg: #131922;
+      --blue-accent: #3b82f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--brand-title);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      padding: 1.5rem 1rem 3rem 1rem;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 680px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding-top: 1rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card-highlight {
+      border: 2px solid rgba(16, 185, 129, 0.4);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, #131922 100%);
+    }
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .input-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--brand-title);
+      margin-bottom: 0.4rem;
+    }
+    input, select {
+      width: 100%;
+      background: #090c0f;
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-size: 0.95rem;
+      color: #fff;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 520px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .btn-primary {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      font-size: 1rem;
+      font-weight: 800;
+      border: none;
+      border-radius: 10px;
+      padding: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--brand-title);
+      font-size: 0.88rem;
+      font-weight: 600;
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 0.65rem;
+      cursor: pointer;
+      margin-top: 0.6rem;
+      text-align: center;
+    }
+    .step-list {
+      list-style: none;
+      counter-reset: step-counter;
+    }
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 2rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1.35rem;
+      height: 1.35rem;
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .step-list li strong {
+      color: var(--brand-title);
+    }
+    .code-snippet {
+      background: #090c0f;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #6ee7b7;
+      font-size: 0.85rem;
+    }
+    .notice {
+      background: rgba(59, 130, 246, 0.08);
+      border-left: 3px solid #3b82f6;
+      padding: 0.85rem 1rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <span class="badge">iOS 15, 16, 17, 18 &amp; iPadOS</span>
+      <h1>Zero-Click Campus Auto-Login</h1>
+      <p class="subtitle">
+        Native Apple Shortcuts automation running at the hardware Wi-Fi connection trigger. Zero battery drain, zero background daemons.
+      </p>
+    </header>
+
+    <!-- 1-Tap Generator Card -->
+    <div class="card card-highlight">
+      <div class="card-title" style="color: #34d399;">
+        <span>⚡</span> Direct 1-Tap Shortcut Installer
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Enter your credentials below to bake them into your personalized Apple Shortcut. Credentials remain 100% on your device.
+      </p>
+
+      <div class="grid-2">
+        <div class="input-group">
+          <label for="srn">PESU Username (SRN)</label>
+          <input type="text" id="srn" placeholder="PES1UG22CS001" autocomplete="username">
+        </div>
+        <div class="input-group">
+          <label for="pwd">Wi-Fi Password</label>
+          <input type="password" id="pwd" placeholder="Your Password" autocomplete="current-password">
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label for="campus">Campus Network Gateway</label>
+        <select id="campus">
+          <option value="http://192.168.254.1:8090/login.xml">PESU EC &amp; RR Campus (192.168.254.1:8090)</option>
+          <option value="http://172.16.1.1:8090/login.xml">Amaatra Hostel (172.16.1.1:8090)</option>
+        </select>
+      </div>
+
+      <button id="btn-download" class="btn-primary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span id="btn-text">Download &amp; Install Shortcut (.shortcut)</span>
+      </button>
+    </div>
+
+    <!-- Step 2: Personal Automation Setup -->
+    <div class="card">
+      <div class="card-title">
+        <span>⚙️</span> Zero-Click Personal Automation Setup
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Configure iOS to run this shortcut automatically whenever your iPhone connects to campus Wi-Fi:
+      </p>
+
+      <ol class="step-list">
+        <li>
+          Open the <strong>Shortcuts</strong> app on your iPhone &rarr; tap the <strong>Automation</strong> tab at the bottom.
+        </li>
+        <li>
+          Tap <strong>New Automation</strong> (or <strong>+</strong> in the top right).
+        </li>
+        <li>
+          Select <strong>Wi-Fi</strong> from the trigger list.
+        </li>
+        <li>
+          Tap <strong>Choose Network</strong> &rarr; select <span class="code-snippet">PESU-RR-Campus</span>, <span class="code-snippet">PESU-EC-Campus</span>, and/or <span class="code-snippet">AMAATRA-HOSTEL</span>.
+        </li>
+        <li>
+          Select <strong>"Run Immediately"</strong>. <em>(Crucial: This ensures iOS authenticates silently without asking for manual confirmation).</em>
+        </li>
+        <li>
+          Tap <strong>Next</strong> &rarr; select <strong>PESU WiFi Login</strong> shortcut &rarr; Done!
+        </li>
+      </ol>
+
+      <div class="notice">
+        💡 <strong>Captive Sheet Tip:</strong> The first time you connect to PESU Wi-Fi, if iOS pops up the captive login sheet, tap <strong>Cancel</strong> in the top-right corner, then tap <strong>"Use Without Internet"</strong>. From then on, your Shortcut will authenticate silently in the background!
+      </div>
+    </div>
+
+    <!-- Step 3: VPN Split Tunneling on iOS -->
+    <div class="card">
+      <div class="card-title">
+        <span>🛡️</span> Using a VPN on iOS? (Tailscale, WireGuard, WARP)
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+        Full-tunnel VPNs route all device traffic into their tunnel. To allow campus portal authentication to succeed:
+      </p>
+      <ul style="padding-left: 1.25rem; font-size: 0.88rem; color: var(--text-muted);">
+        <li style="margin-bottom: 0.5rem;">
+          <strong>Tailscale:</strong> Open iOS Settings &rarr; Tailscale &rarr; Toggle ON <strong>"Allow Local Network Access"</strong>.
+        </li>
+        <li style="margin-bottom: 0.5rem;">
+          <strong>WireGuard &amp; WARP:</strong> In your tunnel settings, ensure private subnet <span class="code-snippet">192.168.0.0/16</span> is excluded.
+        </li>
+        <li style="margin-bottom: 0.5rem;">
+          <strong>Shortcut VPN Action (Alternative):</strong> In the Shortcuts app, add a <strong>Set VPN &rarr; Disconnect</strong> action at the start, and <strong>Set VPN &rarr; Connect</strong> at the end.
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-download').addEventListener('click', function() {
+      var u = document.getElementById('srn').value.trim();
+      var p = document.getElementById('pwd').value.trim();
+      var url = document.getElementById('campus').value;
+      var now = Date.now().toString();
+
+      if (!u || !p) {
+        alert('Please enter your PESU Username (SRN) and Password first!');
+        return;
+      }
+
+      function escapeXml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+      }
+
+      var xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+        '<plist version="1.0">\n' +
+        '<dict>\n' +
+        '  <key>WFWorkflowClientVersion</key>\n' +
+        '  <string>2607.1</string>\n' +
+        '  <key>WFWorkflowMinimumClientVersion</key>\n' +
+        '  <integer>900</integer>\n' +
+        '  <key>WFWorkflowIcon</key>\n' +
+        '  <dict>\n' +
+        '    <key>WFWorkflowIconGlyphNumber</key>\n' +
+        '    <integer>59796</integer>\n' +
+        '    <key>WFWorkflowIconStartColor</key>\n' +
+        '    <integer>4282601983</integer>\n' +
+        '  </dict>\n' +
+        '  <key>WFWorkflowActions</key>\n' +
+        '  <array>\n' +
+        '    <dict>\n' +
+        '      <key>WFWorkflowActionIdentifier</key>\n' +
+        '      <string>is.workflow.actions.getcontentsofurl</string>\n' +
+        '      <key>WFWorkflowActionParameters</key>\n' +
+        '      <dict>\n' +
+        '        <key>WFURL</key>\n' +
+        '        <string>' + escapeXml(url) + '</string>\n' +
+        '        <key>WFHTTPMethod</key>\n' +
+        '        <string>POST</string>\n' +
+        '        <key>WFHTTPHeaders</key>\n' +
+        '        <dict>\n' +
+        '          <key>Value</key>\n' +
+        '          <dict>\n' +
+        '            <key>WFDictionaryFieldValueItems</key>\n' +
+        '            <array>\n' +
+        '              <dict>\n' +
+        '                <key>WFItemType</key><integer>0</integer>\n' +
+        '                <key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>User-Agent</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict>\n' +
+        '                <key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict>\n' +
+        '              </dict>\n' +
+        '            </array>\n' +
+        '          </dict>\n' +
+        '          <key>WFSerializationType</key><string>WFDictionaryFieldValue</string>\n' +
+        '        </dict>\n' +
+        '        <key>WFHTTPBodyType</key>\n' +
+        '        <string>Form</string>\n' +
+        '        <key>WFFormValues</key>\n' +
+        '        <dict>\n' +
+        '          <key>Value</key>\n' +
+        '          <dict>\n' +
+        '            <key>WFDictionaryFieldValueItems</key>\n' +
+        '            <array>\n' +
+        '              <dict><key>WFItemType</key><integer>0</integer><key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>mode</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict><key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>191</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict></dict>\n' +
+        '              <dict><key>WFItemType</key><integer>0</integer><key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>username</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict><key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>' + escapeXml(u) + '</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict></dict>\n' +
+        '              <dict><key>WFItemType</key><integer>0</integer><key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>password</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict><key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>' + escapeXml(p) + '</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict></dict>\n' +
+        '              <dict><key>WFItemType</key><integer>0</integer><key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>a</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict><key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>' + now + '</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict></dict>\n' +
+        '              <dict><key>WFItemType</key><integer>0</integer><key>WFKey</key><dict><key>Value</key><dict><key>string</key><string>producttype</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict><key>WFValue</key><dict><key>Value</key><dict><key>string</key><string>0</string></dict><key>WFSerializationType</key><string>WFTextTokenString</string></dict></dict>\n' +
+        '            </array>\n' +
+        '          </dict>\n' +
+        '          <key>WFSerializationType</key><string>WFDictionaryFieldValue</string>\n' +
+        '        </dict>\n' +
+        '      </dict>\n' +
+        '    </dict>\n' +
+        '    <dict>\n' +
+        '      <key>WFWorkflowActionIdentifier</key>\n' +
+        '      <string>is.workflow.actions.notification</string>\n' +
+        '      <key>WFWorkflowActionParameters</key>\n' +
+        '      <dict>\n' +
+        '        <key>WFNotificationActionTitle</key>\n' +
+        '        <string>PESU WiFi</string>\n' +
+        '        <key>WFNotificationActionBody</key>\n' +
+        '        <string>Campus Wi-Fi Connected &amp; Authenticated!</string>\n' +
+        '      </dict>\n' +
+        '    </dict>\n' +
+        '  </array>\n' +
+        '</dict>\n' +
+        '</plist>';
+
+      var blob = new Blob([xml], { type: 'application/octet-stream' });
+      var downloadUrl = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = 'PESU-WiFi-Login.shortcut';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      var btnText = document.getElementById('btn-text');
+      btnText.textContent = 'Downloaded! Tap file to import into Shortcuts';
+      setTimeout(function() {
+        btnText.textContent = 'Download & Install Shortcut (.shortcut)';
+      }, 4000);
+    });
+  </script>
+</body>
+</html>

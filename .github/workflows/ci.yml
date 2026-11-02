@@ -154,6 +154,9 @@ jobs:
           find dist -name "*.apk" -exec cp {} release_assets/ \;
           cp install.sh release_assets/
           cp install.ps1 release_assets/
+          VERSION=${GITHUB_REF#refs/tags/v}
+          python3 contrib/ios/generate_ios_shortcut.py --output "release_assets/pesu-wifi-v${VERSION}-ios-shortcut.shortcut"
+          cp contrib/ios/pesu-wifi-ios-companion.html "release_assets/pesu-wifi-v${VERSION}-ios-companion.html"
           cd release_assets
           sha256sum * > SHA256SUMS
           cat SHA256SUMS

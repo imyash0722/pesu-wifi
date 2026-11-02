@@ -5,6 +5,7 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.12 — Official iOS / iPhone Release Bundle, Apple Shortcuts Package & Multi-VPN Split Tunneling](#v3712--official-ios--iphone-release-bundle-apple-shortcuts-package--multi-vpn-split-tunneling)
 - [v3.7.8 — Dynamic Gateway Bypass, Android Auth Switcher Fix, Event-Driven Watchdog Calls & Clean Daemon Lifecycle](#v378--dynamic-gateway-bypass-android-auth-switcher-fix-event-driven-watchdog-calls--clean-daemon-lifecycle)
   - [Overview & Major Highlights](#v378-overview--major-highlights)
 - [v3.7.7 — Zero-Disconnect VPN/Tailscale Coexistence, Persistent Listen Ports, Dynamic Route Injection & Netlink Filter Hardening](#v377--zero-disconnect-vpntailscale-coexistence-persistent-listen-ports-dynamic-route-injection--netlink-filter-hardening)
@@ -37,6 +38,25 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.12 — Official iOS / iPhone Release Bundle, Apple Shortcuts Package & Multi-VPN Split Tunneling
+
+**Release Date:** November 2, 2026  
+**Git Tag:** [`v3.7.12`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.12)  
+**Release Type:** Multi-Platform Production Release (iOS, Android, Windows, Linux)
+
+### v3.7.12 Overview & Major Highlights
+
+#### 1. Official Apple iOS Release Artifacts in GitHub Releases
+- **Apple Shortcuts Package:** Built and published native `.shortcut` bundle (`pesu-wifi-v3.7.12-ios-shortcut.shortcut`) attached directly to GitHub Releases. Users can tap to import into Apple Shortcuts with zero manual configuration.
+- **Standalone Offline iOS Companion:** Bundled `pesu-wifi-v3.7.12-ios-companion.html`, a self-contained offline generator with embedded CSS and scripts allowing students to generate custom `.shortcut` files directly on their iPhone.
+- **Hardware-Level Personal Automation:** Silently authenticates at the iOS Wi-Fi connection trigger with zero battery drain and zero background daemon restrictions.
+
+#### 2. Multi-VPN Split Tunneling with Automatic App Detection (Android & iOS)
+- **Automatic App Detection:** Dynamically detects installed VPN apps (Tailscale, Proton VPN, WireGuard, Cloudflare WARP, Mullvad, NordVPN, Surfshark, AdGuard, OpenVPN) with 1-tap launcher buttons.
+- **Universal 3-Step Rule:** Standardized instructions for any Android/iOS VPN supporting split tunneling, including strict killswitch / LAN access bypass rules.
 
 ---
 

@@ -17,10 +17,10 @@ A blazing fast, native multi-platform captive portal login manager and continuou
 
 | Platform | Interface | Engine | Status | Download |
 | :--- | :--- | :--- | :--- | :--- |
-| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.7 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.7 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.7 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
-| **iOS / iPadOS** | Native Shortcuts | 1-Tap `.shortcut` Generator + Personal Automation | Live Tool | [Generate Shortcut](https://imyash0722.github.io/pesu-wifi/ios.html) |
+| **Android** (8–16) | Material 3 Jetpack Compose | Foreground Service (`specialUse`) + Exact RTC Watchdog | Stable v3.7.12 | [Download APK](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Windows** (10/11) | Win32 Tray / CLI | Native Rust + Win32 WlanAPI + Inno Setup | Stable v3.7.12 | [Download .exe](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **Linux** (x86_64) | CLI + systemd | Native Rust daemon + `/32` host route bypass | Stable v3.7.12 | [Download tar.gz](https://github.com/imyash0722/pesu-wifi/releases/latest) |
+| **iOS / iPadOS** | Native Shortcuts | 1-Tap `.shortcut` Package + Personal Automation | Stable v3.7.12 | [Download .shortcut](https://github.com/imyash0722/pesu-wifi/releases/latest) |
 | **macOS** | CLI / LaunchAgent | Native Rust CLI | Compatible | Build from Source |
 
 ---
@@ -78,7 +78,10 @@ yay -S pesu-wifi-bin
 ```
 
 ### 4. Apple iPhone / iPad (iOS)
-Use our 1-tap **[iOS Shortcut Generator](https://imyash0722.github.io/pesu-wifi/ios.html)** to generate a `.shortcut` file preloaded with your SRN, then configure a single Personal Automation triggered whenever your device connects to `PESU-RR` or `PESU-EC`.
+- **Direct Release Asset:** Download the official [`.shortcut` bundle](https://github.com/imyash0722/pesu-wifi/releases/latest) from GitHub Releases and tap to open directly in the Apple Shortcuts app.
+- **Web Generator:** Use our 1-tap **[iOS Shortcut Generator](https://imyash0722.github.io/pesu-wifi/ios.html)** to generate a custom `.shortcut` file preloaded with your SRN.
+- **Offline Companion:** Download the bundled `pesu-wifi-v3.7.12-ios-companion.html` to generate shortcuts offline directly on your iPhone.
+- **Zero-Click Automation:** In the iOS Shortcuts app &rarr; **Automation** tab &rarr; **New Automation** &rarr; **Wi-Fi** (`PESU-RR-Campus`, `PESU-EC-Campus`, `AMAATRA-HOSTEL`) &rarr; select **"Run Immediately"** &rarr; choose `PESU WiFi Login`. Silently logs in at the hardware layer with 0 battery drain.
 
 ---
 
