@@ -5,6 +5,7 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.14 — Zero-Overhead Linux Link Inspection, Seamless L2 Roaming & In-App Update Button Refinement](#v3714--zero-overhead-linux-link-inspection-seamless-l2-roaming--in-app-update-button-refinement)
 - [v3.7.13 — Direct Web Portal Button on Android Home Screen](#v3713--direct-web-portal-button-on-android-home-screen)
 - [v3.7.12 — Official iOS / iPhone Release Bundle, Apple Shortcuts Package & Multi-VPN Split Tunneling](#v3712--official-ios--iphone-release-bundle-apple-shortcuts-package--multi-vpn-split-tunneling)
 - [v3.7.8 — Dynamic Gateway Bypass, Android Auth Switcher Fix, Event-Driven Watchdog Calls & Clean Daemon Lifecycle](#v378--dynamic-gateway-bypass-android-auth-switcher-fix-event-driven-watchdog-calls--clean-daemon-lifecycle)
@@ -39,6 +40,28 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.14 — Zero-Overhead Linux Link Inspection, Seamless L2 Roaming & In-App Update Button Refinement
+
+**Release Date:** November 3, 2026  
+**Git Tag:** [`v3.7.14`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.14)  
+**Release Type:** Performance, Stability & UI Polish Release (Linux CLI & Android)
+
+### v3.7.14 Overview & Major Highlights
+
+#### 1. Linux CLI: Zero-Overhead Kernel Link Queries via `iw dev link`
+- **Eliminated Active Wi-Fi RF Scans:** Replaced `nmcli dev wifi` scanning with instant netlink queries to the kernel's active station cache via `iw dev <iface> link` (fallback to `nmcli --rescan no`).
+- **No More Latency Spikes / Packet Freezes:** Active 802.11 channel scans were previously pausing radio transmission across 2.4/5GHz channels for 1.5–3.5s, causing ping spikes to 2000ms+ and degraded throughput. Link queries now execute in ~1ms without touching radio channels or dropping packets.
+
+#### 2. Seamless L2 Roaming: Removed Forced Disconnections & BSSID Thrashing
+- **Removed Forced BSSID Steering:** Purged proactive `steer_to_bssid` (`nmcli dev wifi connect <ssid> bssid <bssid>`), which was forcefully disassociating the link, killing DHCP leases, and causing 4–10s blackouts when signal dipped below 40% in hallways and classrooms.
+- **Hardware-Native L2 Handover:** Linux NetworkManager and `wpa_supplicant`'s native background scan (`bgscan simple:30:-65:300`) now roam seamlessly between campus APs at the L2/MAC layer.
+- **Reactive Gateway Verification:** The daemon now mirrors the Android architecture: when an AP roam occurs, it simply validates the `/live` session heartbeat and transparently re-authenticates if the gateway dropped the lease, with zero connection drops.
+
+#### 3. Android UI: In-App "Check Updates" Button Refinement
+- **Fixed Button Wrapping & Sizing:** Added flex weight to the version info container and styled the "Check Updates" button with standard pill geometry (`shape = RoundedCornerShape(50.dp)`), balanced content padding, and `maxLines = 1` (`softWrap = false`), preventing awkward icon/text wrapping on narrow screens.
 
 ---
 

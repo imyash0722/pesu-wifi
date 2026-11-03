@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -370,7 +371,11 @@ fun GuidesScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 12.dp)
+                        ) {
                             Text(
                                 text = "PESU WiFi for Android",
                                 style = MaterialTheme.typography.titleMedium,
@@ -385,15 +390,30 @@ fun GuidesScreen(
 
                         Button(
                             onClick = onCheckForUpdates,
-                            colors = ButtonDefaults.buttonColors(containerColor = StatusGreen)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SystemUpdate,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                            shape = RoundedCornerShape(50.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = StatusGreen,
+                                contentColor = Color.White
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = "Check Updates", fontSize = 12.sp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Check Updates",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
                 }

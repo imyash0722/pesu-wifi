@@ -7,7 +7,77 @@ pub fn get_default_wifi_con() -> String {
 }
 
 #[cfg(unix)]
+struct WifiLinkInfo {
+    bssid: Option<String>,
+    ssid: Option<String>,
+    #[allow(dead_code)]
+    signal_pct: Option<i32>,
+}
+
+#[cfg(unix)]
+fn get_linux_wifi_link() -> Option<WifiLinkInfo> {
+    let iface = crate::portal::get_wifi_interface_name()?;
+    let output = Command::new("iw")
+        .args(["dev", &iface, "link"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    if !text.contains("Connected to") {
+        return None;
+    }
+
+    let mut bssid = None;
+    let mut ssid = None;
+    let mut signal_pct = None;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Connected to") {
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if parts.len() >= 3 {
+                bssid = Some(parts[2].to_uppercase());
+            }
+        } else if trimmed.starts_with("SSID:") {
+            ssid = Some(trimmed.trim_start_matches("SSID:").trim().to_string());
+        } else if trimmed.starts_with("signal:") {
+            let sig_parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if sig_parts.len() >= 2 {
+                if let Ok(dbm) = sig_parts[1].parse::<i32>() {
+                    let pct = if dbm <= -100 {
+                        0
+                    } else if dbm >= -50 {
+                        100
+                    } else {
+                        (2 * (dbm + 100)).clamp(0, 100)
+                    };
+                    signal_pct = Some(pct);
+                }
+            }
+        }
+    }
+
+    Some(WifiLinkInfo {
+        bssid,
+        ssid,
+        signal_pct,
+    })
+}
+
+#[cfg(unix)]
 pub fn get_current_wifi_ssid() -> Option<String> {
+    if let Some(info) = get_linux_wifi_link() {
+        if let Some(ssid) = info.ssid {
+            if !ssid.is_empty() {
+                return Some(ssid);
+            }
+        }
+    }
+
     let output = Command::new("nmcli")
         .args(["-t", "-f", "name,type", "connection", "show", "--active"])
         .output()
@@ -26,8 +96,16 @@ pub fn get_current_wifi_ssid() -> Option<String> {
 
 #[cfg(unix)]
 pub fn get_current_wifi_bssid() -> Option<String> {
+    if let Some(info) = get_linux_wifi_link() {
+        if let Some(bssid) = info.bssid {
+            if !bssid.is_empty() {
+                return Some(bssid);
+            }
+        }
+    }
+
     let output = Command::new("nmcli")
-        .args(["-t", "-f", "active,bssid", "dev", "wifi"])
+        .args(["--rescan", "no", "-t", "-f", "active,bssid", "dev", "wifi"])
         .output()
         .ok()?;
 
@@ -44,9 +122,16 @@ pub fn get_current_wifi_bssid() -> Option<String> {
 }
 
 #[cfg(unix)]
+#[allow(dead_code)]
 pub fn get_current_wifi_signal() -> Option<i32> {
+    if let Some(info) = get_linux_wifi_link() {
+        if let Some(sig) = info.signal_pct {
+            return Some(sig);
+        }
+    }
+
     let output = Command::new("nmcli")
-        .args(["-t", "-f", "active,signal", "dev", "wifi"])
+        .args(["--rescan", "no", "-t", "-f", "active,signal", "dev", "wifi"])
         .output()
         .ok()?;
 
@@ -63,6 +148,7 @@ pub fn get_current_wifi_signal() -> Option<i32> {
 }
 
 #[cfg(unix)]
+#[allow(dead_code)]
 pub fn scan_and_find_stronger_campus_ap(
     _current_ssid: &str,
     current_bssid: Option<&str>,
@@ -107,6 +193,7 @@ pub fn scan_and_find_stronger_campus_ap(
 }
 
 #[cfg(unix)]
+#[allow(dead_code)]
 pub fn steer_to_bssid(ssid: &str, target_bssid: &str) -> bool {
     let output = Command::new("nmcli")
         .args(["dev", "wifi", "connect", ssid, "bssid", target_bssid])
