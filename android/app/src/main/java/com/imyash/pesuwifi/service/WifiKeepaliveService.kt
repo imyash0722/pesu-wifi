@@ -274,13 +274,21 @@ class WifiKeepaliveService : Service() {
 
         when (action) {
             ACTION_STOP -> {
-                AppLogger.i(TAG, "ACTION_STOP received, stopping service completely")
+                AppLogger.i(TAG, "ACTION_STOP received, stopping service completely and logging out")
                 getSharedPreferences("pesu_wifi_settings", Context.MODE_PRIVATE)
                     .edit()
                     .putBoolean("daemon_enabled", false)
                     .apply()
-                stopForegroundServiceCompletely()
-                stopSelf()
+                serviceScope.launch {
+                    try {
+                        portalRepository.logout(isExplicit = true)
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "Error logging out during service stop: ${e.message}")
+                    } finally {
+                        stopForegroundServiceCompletely()
+                        stopSelf()
+                    }
+                }
                 return START_NOT_STICKY
             }
             ACTION_LOGIN -> {

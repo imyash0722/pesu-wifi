@@ -7,6 +7,7 @@ mod wifi;
 use clap::{Parser, Subcommand};
 use std::cmp::max;
 use std::io::{self, Write};
+use std::time::Duration;
 use ui::{color, print_err, print_info, print_ok, print_warn, visual_len, BOLD, CYAN, DIM, GREEN, RED, YELLOW};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -114,6 +115,14 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
         match config::get_credentials_for(target) {
             Some(p) => {
                 let mut cfg = config::load_config();
+                let prev_user = cfg.active_user.clone();
+                if prev_user.as_deref() != Some(target) {
+                    if let Some(ref old_u) = prev_user {
+                        print_info(&format!("Logging out previous account '{}'...", old_u));
+                        let _ = portal::do_logout(Some(old_u));
+                        std::thread::sleep(Duration::from_millis(250));
+                    }
+                }
                 cfg.active_user = Some(target.to_string());
                 let _ = config::save_config(&cfg);
                 print_info(&format!("Using account '{}'.", target));
@@ -140,11 +149,6 @@ fn cmd_login(target_user: Option<&str>) -> i32 {
         if wifi::is_campus_ssid(&ssid) {
             wifi::ensure_vpn_bypass_routes(&ssid);
         }
-    }
-
-    if portal::check_live(Some(&username), true) {
-        print_ok(&format!("Already logged in as '{}'.", username));
-        return 0;
     }
 
     if !portal::is_portal_online() {
@@ -382,10 +386,34 @@ fn cmd_select(user_opt: Option<&str>) -> i32 {
         return 1;
     }
 
+    let prev_user = cfg.active_user.clone();
+    let is_switching = prev_user.as_deref() != Some(&username);
+
+    if is_switching {
+        if let Some(ref old_user) = prev_user {
+            print_info(&format!("Logging out active account '{}'...", old_user));
+            let _ = portal::do_logout(Some(old_user));
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
     cfg.active_user = Some(username.clone());
     let _ = config::save_config(&cfg);
-    print_ok(&format!("Default account set to '{}'.", username));
-    0
+    print_ok(&format!("Default account switched to '{}'.", username));
+
+    if portal::is_portal_online() {
+        print_info(&format!("Logging in to new account '{}'...", username));
+        cmd_login(Some(&username))
+    } else {
+        println!(
+            "{}",
+            color(
+                DIM,
+                "  Portal gateway currently offline. Active account set; will authenticate automatically once connected to PESU Wi-Fi."
+            )
+        );
+        0
+    }
 }
 
 fn cmd_list(show_passwords: bool) -> i32 {

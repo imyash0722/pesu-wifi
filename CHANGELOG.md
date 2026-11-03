@@ -5,6 +5,7 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
 ---
 
 ## Table of Contents
+- [v3.7.15 — Unified Graceful Lifecycle: Pre-Login Gateway Flush, Clean Stop & Automatic Account Switch](#v3715--unified-graceful-lifecycle-pre-login-gateway-flush-clean-stop--automatic-account-switch)
 - [v3.7.14 — Zero-Overhead Linux Link Inspection, Seamless L2 Roaming & In-App Update Button Refinement](#v3714--zero-overhead-linux-link-inspection-seamless-l2-roaming--in-app-update-button-refinement)
 - [v3.7.13 — Direct Web Portal Button on Android Home Screen](#v3713--direct-web-portal-button-on-android-home-screen)
 - [v3.7.12 — Official iOS / iPhone Release Bundle, Apple Shortcuts Package & Multi-VPN Split Tunneling](#v3712--official-ios--iphone-release-bundle-apple-shortcuts-package--multi-vpn-split-tunneling)
@@ -40,6 +41,31 @@ A comprehensive, commit-by-commit record of all architecture changes, feature ad
   - [Overview & Major Highlights](#v320-overview--major-highlights)
 - [v3.1.0 — Clap Derive Migration & Production CLI Architecture](#v310--clap-derive-migration--production-cli-architecture)
   - [Overview & Major Highlights](#v310-overview--major-highlights)
+
+---
+
+## v3.7.15 — Unified Graceful Lifecycle: Pre-Login Gateway Flush, Clean Stop & Automatic Account Switch
+
+**Release Date:** November 3, 2026  
+**Git Tag:** [`v3.7.15`](https://github.com/imyash0722/pesu-wifi/releases/tag/v3.7.15)  
+**Release Type:** Lifecycle Stability & Multi-Platform Architecture Release (Linux, Windows, Android)
+
+### v3.7.15 Overview & Major Highlights
+
+#### 1. Pre-Login Gateway Session Flush (Clean Authentication)
+- **Automatic Stale Session Clearance:** In both Rust CLI (`src/portal.rs:do_login`, `src/main.rs:cmd_login`) and Android (`PortalRepository.kt:login`), every login sequence now flushes any active, stale, or browser-created sessions on the current IP before submitting login credentials.
+- **Prevents Concurrency (Code 529) & "Already Logged In" Conflicts:** Clears lingering gateway session bindings left behind by browser logins, abandoned background processes, or previous runs before authenticating with the target account.
+
+#### 2. Clean Program Stop & Gateway Logout
+- **Graceful Gateway Logout on Stop:** Across Linux, Windows, and Android, stopping the daemon or background service now sends a clean `/logout.xml?mode=193` request to release the captive portal session on the gateway before terminating the process.
+- **CLI Stop Command (`pesu-wifi stop`):** Both Unix and Windows implementations of `cmd_stop()` query active credentials and perform a gateway logout first before killing background processes or stopping systemd user units.
+- **Daemon Signal Trap (SIGTERM / SIGINT / Win32 Console Close):** The long-running daemon catches OS termination signals and cleanly logs out from the portal gateway before exiting.
+- **Android Daemon Stop:** Tapping "Stop" in the UI or notification sends `portalRepository.logout(isExplicit = true)` before stopping `WifiKeepaliveService`, removing notifications, and releasing wake locks.
+
+#### 3. Seamless Multi-Account Switching
+- **Atomic Logout-Then-Login Flow:**
+  - **Linux / Windows CLI (`pesu-wifi select <user>` and `pesu-wifi login <user>`):** Switching active accounts automatically sends a logout request for the old account, updates `config.json`, and immediately authenticates with the new account if connected to PESU Wi-Fi.
+  - **Android (`PortalViewModel.kt:switchAccount`):** Switches active user in storage, logs out the previous active user, and authenticates with the new account in one seamless coroutine flow.
 
 ---
 

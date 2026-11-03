@@ -904,6 +904,17 @@ pub enum LoginResult {
 }
 
 pub fn do_login(username: &str, password: &str) -> LoginResult {
+    // 0. Ensure all previous sessions or active sessions on this IP are cleanly flushed before authenticating
+    let (active_u, _) = config::get_active_credentials();
+    if let Some(ref old_u) = active_u {
+        if old_u != username {
+            let _ = do_logout(Some(old_u));
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+    let _ = do_logout(Some(username));
+    std::thread::sleep(Duration::from_millis(250));
+
     let agent = create_agent(Duration::from_millis(8000));
     let ts = get_timestamp().to_string();
 

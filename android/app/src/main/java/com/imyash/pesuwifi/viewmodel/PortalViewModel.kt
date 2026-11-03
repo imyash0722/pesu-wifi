@@ -225,10 +225,10 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
             _errorMessage.value = null
             _userMessage.value = "Switching to '$username'..."
             try {
-                if (!previousUser.isNullOrBlank() && previousUser != username) {
+                if (!previousUser.isNullOrBlank()) {
                     try {
                         portalRepository.logout(previousUser, isExplicit = false)
-                        kotlinx.coroutines.delay(350L)
+                        kotlinx.coroutines.delay(300L)
                     } catch (_: Exception) {}
                 }
                 val result = portalRepository.login(username)
@@ -271,8 +271,18 @@ class PortalViewModel(application: Application) : AndroidViewModel(application) 
         val running = WifiKeepaliveService.isServiceRunning.value
         val context = getApplication<Application>().applicationContext
         if (running) {
-            WifiKeepaliveService.stop(context)
-            _userMessage.value = "Keepalive daemon stopped"
+            viewModelScope.launch {
+                _isLoading.value = true
+                _userMessage.value = "Logging out and stopping daemon..."
+                try {
+                    portalRepository.logout(isExplicit = true)
+                    kotlinx.coroutines.delay(250L)
+                } catch (_: Exception) {}
+                WifiKeepaliveService.stop(context)
+                _userMessage.value = "Keepalive daemon stopped and logged out"
+                _isLoading.value = false
+                refresh()
+            }
         } else {
             WifiKeepaliveService.start(context)
             _userMessage.value = "Keepalive daemon started"

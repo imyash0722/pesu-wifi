@@ -572,8 +572,48 @@ impl Drop for OsNetworkListener {
     }
 }
 
+static SHUTDOWN_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(unix)]
+extern "C" fn sig_handler(_sig: libc::c_int) {
+    SHUTDOWN_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[cfg(unix)]
+fn setup_signal_handlers() {
+    unsafe {
+        libc::signal(libc::SIGINT, sig_handler as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, sig_handler as *const () as libc::sighandler_t);
+    }
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows_sys::Win32::Foundation::BOOL {
+    match ctrl_type {
+        windows_sys::Win32::System::Console::CTRL_C_EVENT
+        | windows_sys::Win32::System::Console::CTRL_BREAK_EVENT
+        | windows_sys::Win32::System::Console::CTRL_CLOSE_EVENT
+        | windows_sys::Win32::System::Console::CTRL_SHUTDOWN_EVENT => {
+            SHUTDOWN_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+            1
+        }
+        _ => 0,
+    }
+}
+
+#[cfg(windows)]
+fn setup_signal_handlers() {
+    unsafe {
+        windows_sys::Win32::System::Console::SetConsoleCtrlHandler(
+            Some(console_ctrl_handler),
+            1,
+        );
+    }
+}
+
 pub fn run_daemon() -> ! {
     let _lock = acquire_daemon_lock();
+    setup_signal_handlers();
 
     let (mut username, mut password) = match config::get_active_credentials() {
         (Some(u), Some(p)) => (u, p),
@@ -619,6 +659,13 @@ pub fn run_daemon() -> ! {
     let mut failed_accounts_in_cycle: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     loop {
+        if SHUTDOWN_REQUESTED.load(std::sync::atomic::Ordering::Relaxed) {
+            log(&format!("Daemon shutdown signal received. Logging out '{}' from captive portal...", username));
+            let _ = portal::do_logout(Some(&username));
+            log("Cleanly stopped. Exiting.");
+            std::process::exit(0);
+        }
+
         // Step 1: Wait for OS Network Event or Keepalive Watchdog Timeout
         if !is_first_run {
             match listener.wait_event(next_wait) {
@@ -638,6 +685,9 @@ pub fn run_daemon() -> ! {
         } else {
             is_first_run = false;
             log("⚡ Initial link state evaluation on daemon startup...");
+            log("Flushing any previous gateway sessions on IP before initial authentication...");
+            let _ = portal::do_logout(None);
+            std::thread::sleep(Duration::from_millis(200));
         }
 
         // Step 2: Refresh credentials dynamically if user updated config
@@ -1000,6 +1050,13 @@ pub fn cmd_start(foreground: bool) -> i32 {
 pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
 
+    // 1. Gracefully log out active session from captive portal gateway first
+    let (active_u, _) = config::get_active_credentials();
+    let user_display = active_u.as_deref().unwrap_or("user");
+    print_info(&format!("Logging out '{}' from captive portal gateway...", user_display));
+    let _ = portal::do_logout(active_u.as_deref());
+    sleep(Duration::from_millis(250));
+
     let lock_path = get_lock_file_path();
     let lock_pid = if let Ok(mut f) = std::fs::File::open(&lock_path) {
         use std::io::Read;
@@ -1056,7 +1113,7 @@ pub fn cmd_stop() -> i32 {
     sleep(Duration::from_millis(300));
     let (still_active, _) = is_daemon_running();
     if !still_active {
-        print_ok("PESU WiFi daemon stopped.");
+        print_ok("PESU WiFi daemon stopped and logged out cleanly.");
     } else {
         print_warn("Daemon process may still be stopping.");
     }
@@ -1066,6 +1123,13 @@ pub fn cmd_stop() -> i32 {
 #[cfg(windows)]
 pub fn cmd_stop() -> i32 {
     print_info("Stopping PESU WiFi daemon...");
+
+    // 1. Gracefully log out active session from captive portal gateway first
+    let (active_u, _) = config::get_active_credentials();
+    let user_display = active_u.as_deref().unwrap_or("user");
+    print_info(&format!("Logging out '{}' from captive portal gateway...", user_display));
+    let _ = portal::do_logout(active_u.as_deref());
+    sleep(Duration::from_millis(250));
 
     let lock_path = get_lock_file_path();
     let lock_pid = if let Ok(mut f) = std::fs::File::open(&lock_path) {
@@ -1105,7 +1169,7 @@ pub fn cmd_stop() -> i32 {
     sleep(Duration::from_millis(500));
     let (still_active, _) = is_daemon_running();
     if !still_active {
-        print_ok("PESU WiFi daemon stopped.");
+        print_ok("PESU WiFi daemon stopped and logged out cleanly.");
     } else {
         print_warn("Daemon process may still be stopping.");
     }

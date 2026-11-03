@@ -533,12 +533,17 @@ class PortalRepository(
             val currentUser = currentStatus.activeUsername
             val previousUser = if (!currentUser.isNullOrBlank()) currentUser else accountRepository.getActiveUser()
             if (!previousUser.isNullOrBlank() && previousUser != username) {
-                AppLogger.i("PortalRepository", "Logging out previous user '$previousUser' before switching to '$username'")
+                AppLogger.i("PortalRepository", "Logging out previous active user '$previousUser' before logging in as '$username'")
                 try {
                     api.logout(previousUser)
-                    kotlinx.coroutines.delay(350L)
+                    kotlinx.coroutines.delay(250L)
                 } catch (_: Exception) {}
             }
+            // Flush any existing gateway session on this IP to guarantee clean authentication
+            try {
+                api.logout(username)
+                kotlinx.coroutines.delay(250L)
+            } catch (_: Exception) {}
 
             AppLogger.i("PortalRepository", "Initiating login for $username")
             val result = api.login(username, password)
