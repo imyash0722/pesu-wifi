@@ -896,19 +896,19 @@ pub fn run_daemon() -> ! {
                     let _ = config::save_config(&updated_cfg);
                     next_wait = Some(Duration::from_millis(200));
                 } else {
-                    log("✖ All configured accounts have reached session/quota limits.");
+                    log("✖ All configured accounts have reached session/quota limits. Retrying in 1 hour (3600s)...");
                     notify_desktop(
                         "PESU WiFi Limit Reached",
-                        "All configured accounts have reached session/quota limits.",
+                        "All configured accounts have reached session/quota limits. Retrying in 1 hour.",
                         "critical",
                     );
                     failed_accounts_in_cycle.clear();
-                    next_wait = Some(Duration::from_secs(30));
+                    next_wait = Some(Duration::from_secs(3600));
                 }
             }
             portal::LoginResult::InvalidCredentials(err) => {
                 log(&format!(
-                    "✖ Invalid credentials for '{}': {}. Run 'pesu-wifi add' to update.",
+                    "✖ Invalid credentials for '{}': {}. Retrying in 1 hour (3600s)... Run 'pesu-wifi add' to update.",
                     username, err
                 ));
                 notify_desktop(
@@ -916,12 +916,12 @@ pub fn run_daemon() -> ! {
                     &format!("Invalid credentials for {}. Check your password.", username),
                     "critical",
                 );
-                next_wait = Some(Duration::from_secs(60));
+                next_wait = Some(Duration::from_secs(3600));
             }
             portal::LoginResult::Failed(err) => {
-                log(&format!("✖ Authentication attempt failed: {}. Retrying in 10s...", err));
+                log(&format!("✖ Authentication attempt failed: {}. Retrying in 1 hour (3600s)...", err));
                 notify_desktop("PESU WiFi Login Failed", &err, "critical");
-                next_wait = Some(Duration::from_secs(10));
+                next_wait = Some(Duration::from_secs(3600));
             }
         }
     }
